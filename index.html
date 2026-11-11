@@ -211,6 +211,10 @@ window.BDA_STANDALONE = true;
     const pub = () => new Promise((res, rej) => c.publish(myTopic, JSON.stringify(mine), { retain: true, qos: 1 }, err => err ? rej({ code: "network" }) : res()));
 
     c.on("message", (topic, payload) => {
+      if (topic === base + "knock") {       // un jugador busca la sala: el anfitrión vuelve a anunciarse
+        if (hub && !closed && mine.role === "host") pub().catch(() => { });
+        return;
+      }
       if (!topic.startsWith(base + "p/")) return;
       const id = topic.slice(base.length + 2);
       if (!id || id === myId) return;
@@ -222,20 +226,41 @@ window.BDA_STANDALONE = true;
       if (setP(id, pres)) fire();
     });
     c.on("connect", () => { if (!closed && Object.keys(mine).length) pub().catch(() => { }); });   // al reconectar
-    await new Promise((res, rej) => c.subscribe(base + "p/+", { qos: 1 }, err => err ? rej({ code: hub ? "broker" : "network" }) : res()));
+    const topics = hub ? { [base + "p/+"]: { qos: 1 }, [base + "knock"]: { qos: 0 } } : { [base + "p/+"]: { qos: 1 } };
+    await new Promise((res, rej) => c.subscribe(topics, err => err ? rej({ code: hub ? "broker" : "network" }) : res()));
 
     const hostHere = () => [...peers].some(([id, v]) => id !== myId && v.presence && v.presence.role === "host");
+    /* No basta con el mensaje retenido: algunos brokers públicos lo pierden o tardan en entregarlo, y si el
+       anfitrión tuvo un corte breve su "last will" lo borra. El jugador "toca la puerta" y el anfitrión,
+       al oírlo, vuelve a publicar su estado. */
+    const knock = () => { try { c.publish(base + "knock", "1", { qos: 0, retain: false }); } catch (e) { } };
     if (hub) {
       await sleep(1200);
       if (hostHere()) { try { c.end(true); } catch (e) { } throw { code: "taken" }; }
     } else {
       let waited = 0;
-      while (!hostHere() && waited < 8000) { await sleep(250); waited += 250; }
+      knock();
+      while (!hostHere() && waited < 20000) {
+        await sleep(250); waited += 250;
+        if (waited % 2000 === 0) knock();
+      }
       if (!hostHere()) { try { c.end(true); } catch (e) { } throw { code: "not_found" }; }
     }
 
     const clear = () => { try { c.publish(myTopic, "", { retain: true, qos: 0 }); } catch (e) { } };
     window.addEventListener("pagehide", clear);
+    /* Al volver a la pestaña (p. ej. tras compartir el PIN por otra app en el celular) la conexión pudo
+       morir y el broker borró nuestra presencia: reconecta o vuelve a publicarla. Además, el anfitrión
+       la reenvía cada 10 s por si el broker la perdió. */
+    const refresh = () => {
+      if (closed || !Object.keys(mine).length) return;
+      if (c.connected) pub().catch(() => { });
+      else if (!c.reconnecting) { try { c.reconnect(); } catch (e) { } }
+    };
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
+    window.addEventListener("online", refresh);
+    window.addEventListener("pageshow", refresh);
+    const beat = hub ? setInterval(refresh, 10000) : null;
 
     return {
       name,
@@ -243,14 +268,18 @@ window.BDA_STANDALONE = true;
         if (closed) throw { code: "closed" };
         mine = Object.assign({}, mine, patch);
         for (const k in patch) if (patch[k] === null) delete mine[k];
-        setP(myId, Object.assign({}, mine)); fire();
+        /* Solo avisa y publica si algo cambió. Antes se avisaba siempre, y como el anfitrión vuelve a
+           publicar al recibir el aviso, se formaba un bucle de cientos de mensajes por segundo; los brokers
+           públicos lo cortaban y la sala "desaparecía" para los jugadores. */
+        if (!setP(myId, Object.assign({}, mine))) return;
+        fire();
         if (!c.connected) throw { code: "disconnected" };
         await pub();
       },
       onPeers: h => { handlers.push(h); fire(); return () => { const i = handlers.indexOf(h); if (i >= 0) handlers.splice(i, 1); }; },
       peers: snap,
       connected: () => !closed && c.connected,
-      leave: async () => { closed = true; clear(); setTimeout(() => { try { c.end(); } catch (e) { } }, 300); }
+      leave: async () => { closed = true; if (beat) clearInterval(beat); clear(); setTimeout(() => { try { c.end(); } catch (e) { } }, 300); }
     };
   }
 
@@ -797,7 +826,7 @@ function hostLobby() {
   if (!$app.querySelector("#lobby")) {
     $app.innerHTML = `<div id="lobby" style="display:contents">
       <div class="card" style="text-align:center;align-items:center"><span class="lbl">PIN de la sala</span><div class="pinbig">${H.pin}</div>
-        <p class="muted">Tus compañeros abren este mismo enlace, eligen <b>Unirme con PIN</b> y escriben este número.</p></div>
+        <p class="muted">Tus compañeros abren este mismo enlace, eligen <b>Unirme con PIN</b> y escriben este número. Mantén esta pantalla abierta: si la cierras o cambias de app en el celular, la sala deja de verse.</p></div>
       <div class="card"><div class="row between"><h3 id="pcount"></h3></div><div class="players" id="plist"></div></div>
       ${cfgBlock()}
       <div class="row between"><button class="ghost" id="close">Cerrar sala</button><button class="big primary" id="start">Empezar juego</button></div></div>`;
@@ -900,7 +929,7 @@ function renderJoin(errMsg) {
 }
 async function joinRoom(pin, nick) {
   VIEW = "player";
-  $app.innerHTML = `<div class="wait"><div class="spinner"></div><p>Buscando la sala ${esc(pin)}…</p></div>`;
+  $app.innerHTML = `<div class="wait"><div class="spinner"></div><p>Buscando la sala ${esc(pin)}… puede tardar unos segundos.</p></div>`;
   let r;
   try { r = await ROOM.join("bda-" + pin); }
   catch (e) {
