@@ -197,10 +197,11 @@ window.BDA_STANDALONE = true;
     }));
     const fire = () => {
       if (fireT) return;
-      fireT = setTimeout(() => {
+      fireT = true;
+      Promise.resolve().then(() => {        // microtarea: ningún clearTimeout puede cancelarla
         fireT = null; const ps = snap();
         handlers.slice().forEach(h => { try { h({ peers: ps, joined: [], left: [], updated: ps }); } catch (e) { console.error(e); } });
-      }, 0);
+      });
     };
     const setP = (id, pres) => {
       const s = JSON.stringify(pres), old = peers.get(id);
@@ -272,7 +273,8 @@ window.BDA_STANDALONE = true;
            publicar al recibir el aviso, se formaba un bucle de cientos de mensajes por segundo; los brokers
            públicos lo cortaban y la sala "desaparecía" para los jugadores. */
         if (!setP(myId, Object.assign({}, mine))) return;
-        fire();
+        // No se llama a fire(): el anfitrión reacciona a los avisos volviendo a publicar, y su estado
+        // incluye el tiempo restante, que siempre cambia; avisarse a sí mismo creaba un bucle sin fin.
         if (!c.connected) throw { code: "disconnected" };
         await pub();
       },
@@ -629,8 +631,12 @@ function renderHome() {
 }
 
 /* ===================== Pantallas compartidas ===================== */
-let timers = [];
-function stopTimers() { timers.forEach(t => { clearInterval(t); cancelAnimationFrame(t); }); timers = []; document.onkeydown = null; }
+/* Los ids de requestAnimationFrame y de setInterval/setTimeout son contadores distintos que se traslapan
+   (ambos empiezan en 1). Antes se guardaban en la misma lista y a todos se les aplicaba clearInterval,
+   lo que cancelaba temporizadores ajenos —como el que entrega los mensajes de la sala— y dejaba la
+   pantalla del jugador congelada. Ahora van en listas separadas. */
+let timers = [], frames = [];
+function stopTimers() { timers.forEach(clearInterval); frames.forEach(cancelAnimationFrame); timers = []; frames = []; document.onkeydown = null; }
 function questionHTML(q, perm, opts) {
   // opts: {interactive, reveal:{dist, chosen}, idx, total, score, streak, hostView}
   const tiles = perm.map((oi, pos) => {
@@ -663,9 +669,12 @@ function runTimer(deadline, dur, onEnd) {
     if (num) num.textContent = Math.ceil(left / 1000);
     if (bar) bar.style.transform = `scaleX(${left / (dur * 1000)})`;
     if (left <= 0 && !done) { done = true; onEnd && onEnd(); return; }
-    if (!done) timers.push(requestAnimationFrame(tick));
+    if (!done) { frames.length = 0; frames.push(requestAnimationFrame(tick)); }
   };
   tick();
+  /* requestAnimationFrame se pausa si la pestaña está oculta o la pantalla se apaga: este respaldo hace
+     que el tiempo se acabe igual (sobre todo en el anfitrión, que si no, nunca revelaría la respuesta). */
+  if (!done) timers.push(setInterval(() => { if (!done && Date.now() >= deadline) tick(); }, 500));
 }
 function bindAnswers(cb) {
   $app.querySelectorAll(".ans").forEach(b => b.onclick = () => cb(+b.dataset.opt));
