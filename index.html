@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reto BDA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=Archivo+Black&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+/* Un solo mundo visual (juego): fondo tinta azul, acento dorado, cuatro colores de respuesta con figura.
+   Layout: una pantalla a la vez, centrada en una columna de hasta 960px. */
+:root {
+  --bg: #0f1830;
+  --surface: #1a2647;
+  --surface-2: #24335c;
+  --ink: #f3efe4;
+  --muted: #a9b3cc;
+  --accent: #f2b134;
+  --ok: #2fae66;
+  --bad: #e0524f;
+  --a0: #d64545; --a1: #2f6fd6; --a2: #c98a10; --a3: #2b9255;
+  --font-display: "Archivo Black", "Arial Black", system-ui, sans-serif;
+  --font-body: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  background-image: radial-gradient(circle at 20% 0%, #1b2a55 0, transparent 45%), radial-gradient(circle at 100% 100%, #2a1f3f 0, transparent 40%);
+  color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+}
+#app { min-height: 100%; max-width: 960px; margin: 0 auto; padding: 20px 16px 32px; display: flex; flex-direction: column; gap: 18px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 400; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+h1 { font-size: clamp(2.2rem, 7vw, 3.6rem); line-height: 1; }
+h2 { font-size: clamp(1.35rem, 4vw, 2rem); line-height: 1.15; }
+h3 { font-size: 1.05rem; }
+p { margin: 0; }
+code { font-family: var(--font-mono); font-size: .88em; background: rgba(255,255,255,.1); padding: .05em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+.muted { color: var(--muted); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.between { justify-content: space-between; }
+.card { background: var(--surface); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+button, .btn {
+  font: 600 1rem var(--font-body); color: var(--ink); background: var(--surface-2); border: 0; border-radius: 10px;
+  padding: 12px 18px; cursor: pointer; transition: transform .08s, filter .15s; box-shadow: 0 4px 0 rgba(0,0,0,.35);
+}
+button:hover { filter: brightness(1.12); }
+button:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+button:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.primary { background: var(--accent); color: #1d1606; }
+.ghost { background: transparent; box-shadow: none; border: 2px solid var(--surface-2); }
+.big { font-size: 1.15rem; padding: 16px 22px; }
+.chip { padding: 8px 14px; border-radius: 999px; box-shadow: none; border: 2px solid var(--surface-2); background: transparent; }
+.chip[aria-pressed="true"] { background: var(--accent); color: #1d1606; border-color: var(--accent); }
+label.lbl { font-weight: 600; font-size: .9rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+input[type=text] {
+  font: 600 1.2rem var(--font-body); color: var(--ink); background: var(--bg); border: 2px solid var(--surface-2);
+  border-radius: 10px; padding: 12px 14px; width: 100%;
+}
+.pin-input { font-family: var(--font-display) !important; letter-spacing: .3em; text-align: center; font-size: 1.6rem !important; }
+.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.brand .tag { color: var(--accent); font-family: var(--font-mono); font-size: .85rem; }
+.hero-shapes { display: flex; gap: 8px; }
+.hero-shapes span { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 600; }
+.pill { background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.pill.gold { background: var(--accent); color: #1d1606; }
+.qbox { background: var(--ink); color: #121a30; border-radius: 14px; padding: 22px 20px; text-align: center; display: flex; flex-direction: column; gap: 8px; }
+.qbox .sec { font-family: var(--font-mono); font-size: .8rem; color: #5b6582; }
+.qbox h2 { font-family: var(--font-body); font-weight: 800; font-size: clamp(1.15rem, 3.4vw, 1.7rem); }
+.qbox code { background: #e3dfd2; color: #14306b; }
+.timer { display: flex; align-items: center; gap: 12px; }
+.timer .num { font-family: var(--font-display); font-size: 2rem; width: 64px; height: 64px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-variant-numeric: tabular-nums; flex: none; }
+.bar { flex: 1; height: 10px; background: var(--surface); border-radius: 999px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); width: 100%; transform-origin: left; }
+.answers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 560px) { .answers { grid-template-columns: 1fr; } }
+.ans {
+  display: flex; align-items: center; gap: 14px; text-align: left; min-height: 78px; padding: 14px 16px;
+  font-size: 1.05rem; font-weight: 700; color: #fff; border-radius: 12px; line-height: 1.3;
+}
+.ans .shape { flex: none; width: 34px; height: 34px; }
+.ans code { background: rgba(0,0,0,.25); color: #fff; }
+.ans.c0 { background: var(--a0); } .ans.c1 { background: var(--a1); } .ans.c2 { background: var(--a2); } .ans.c3 { background: var(--a3); }
+.ans.dim { opacity: .5; filter: saturate(.5); }
+.ans.right { outline: 4px solid #fff; outline-offset: -4px; }
+.ans .mark { margin-left: auto; font-size: 1.4rem; }
+.ans .count { margin-left: auto; font-family: var(--font-display); font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.verdict { border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 8px; text-align: center; }
+.verdict.ok { background: var(--ok); } .verdict.bad { background: var(--bad); } .verdict.neutral { background: var(--surface-2); }
+.verdict .pts { font-family: var(--font-display); font-size: 2rem; }
+.expl { background: var(--surface); border-left: 5px solid var(--accent); border-radius: 10px; padding: 14px 16px; }
+.lead { display: flex; flex-direction: column; gap: 8px; }
+.lead li { list-style: none; display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; background: var(--surface); border-radius: 10px; padding: 10px 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lead li.me { outline: 3px solid var(--accent); }
+.lead ol { margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lead .pos { font-family: var(--font-display); color: var(--accent); }
+.podium { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; align-items: end; }
+.podium div { background: var(--surface-2); border-radius: 12px 12px 4px 4px; padding: 12px 8px; text-align: center; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.podium .p1 { min-height: 180px; background: var(--accent); color: #1d1606; }
+.podium .p2 { min-height: 140px; } .podium .p3 { min-height: 110px; }
+.podium b { font-family: var(--font-display); font-size: 1.6rem; }
+.pinbig { font-family: var(--font-display); font-size: clamp(2.6rem, 11vw, 4.8rem); letter-spacing: .12em; color: var(--accent); line-height: 1; }
+.players { display: flex; flex-wrap: wrap; gap: 8px; }
+.players span { background: var(--surface-2); border-radius: 8px; padding: 6px 12px; font-weight: 700; }
+.players span.off { opacity: .4; }
+.stat3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.stat3 div { background: var(--surface); border-radius: 12px; padding: 12px; text-align: center; }
+.stat3 b { display: block; font-family: var(--font-display); font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.review { display: flex; flex-direction: column; gap: 10px; }
+.review .item { background: var(--surface); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.review .item .yours { color: #ffb4b2; } .review .item .good { color: #9be6b8; }
+.tbar { display: flex; flex-direction: column; gap: 6px; }
+.tbar div { display: grid; grid-template-columns: 70px 1fr 52px; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
+.tbar span.track { height: 12px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.tbar span.track i { display: block; height: 100%; background: var(--accent); }
+.notice { background: var(--surface); border: 2px dashed var(--surface-2); border-radius: 10px; padding: 12px 14px; color: var(--muted); }
+.err { color: #ffb4b2; font-weight: 600; }
+.wait { text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 30px 10px; }
+.spinner { width: 54px; height: 54px; border-radius: 50%; border: 6px solid var(--surface-2); border-top-color: var(--accent); animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } button { transition: none; } }
+footer { margin-top: auto; color: var(--muted); font-size: .8rem; }
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"></main>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+/* Conexión entre dispositivos sin claude.ai: WebRTC con PeerJS.
+   El anfitrión es el centro de la sala: recibe la presencia de cada jugador y reenvía la lista completa a todos.
+   Expone la misma interfaz que usa el juego: claude.use("room").join(nombre) -> { presence, onPeers, peers, leave }. */
+window.BDA_STANDALONE = true;
+(function () {
+  const PFX = "retobda-v1-";
+  const PeerCls = () => window.Peer || (window.peerjs && window.peerjs.Peer);
+
+  function openPeer(id) {
+    return new Promise((resolve, reject) => {
+      const P = PeerCls();
+      if (!P) return reject({ code: "no_lib" });
+      const p = id ? new P(id, { debug: 0 }) : new P({ debug: 0 });
+      let opened = false;
+      const t = setTimeout(() => { if (!opened) { try { p.destroy(); } catch (e) { } reject({ code: "timeout" }); } }, 15000);
+      p.on("open", () => { opened = true; clearTimeout(t); resolve(p); });
+      p.on("error", err => {
+        if (!opened) { clearTimeout(t); try { p.destroy(); } catch (e) { } reject({ code: err && err.type === "unavailable-id" ? "taken" : (err && err.type) || "error" }); }
+      });
+      p.on("disconnected", () => { try { if (!p.destroyed) p.reconnect(); } catch (e) { } });
+    });
+  }
+
+  async function join(name, opts) {
+    const hub = !!(opts && opts.hub), hubId = PFX + name;
+    const peer = await openPeer(hub ? hubId : null);
+    const myId = peer.id;
+    const peers = new Map();            // id -> {presence, s, updatedAt}
+    const handlers = [];
+    const conns = new Map();            // solo anfitrión: id -> conexión
+    let mine = {}, hubConn = null, closed = false, fireT = null, bT = null;
+
+    const snap = () => [...peers].map(([id, v]) => Object.freeze({
+      peer: id, by: null, kind: "viewer", guest: false, isMe: id === myId, sameTab: id === myId, presence: v.presence, updatedAt: v.updatedAt
+    }));
+    const fire = () => {
+      if (fireT) return;
+      fireT = setTimeout(() => {
+        fireT = null; const ps = snap();
+        handlers.slice().forEach(h => { try { h({ peers: ps, joined: [], left: [], updated: ps }); } catch (e) { console.error(e); } });
+      }, 0);
+    };
+    const setP = (id, pres) => {
+      const s = JSON.stringify(pres), old = peers.get(id);
+      if (old && old.s === s) return false;
+      peers.set(id, { presence: pres, s, updatedAt: Date.now() }); return true;
+    };
+    const broadcast = () => {
+      if (bT) return;
+      bT = setTimeout(() => {
+        bT = null;
+        const list = [...peers].map(([id, v]) => [id, v.presence]);
+        conns.forEach(c => { if (c.open) { try { c.send({ t: "peers", list }); } catch (e) { } } });
+      }, 40);
+    };
+    setP(myId, {});
+    const bye = () => { try { peer.destroy(); } catch (e) { } };
+    window.addEventListener("pagehide", bye);
+
+    if (hub) {
+      peer.on("connection", c => {
+        c.on("open", () => { conns.set(c.peer, c); broadcast(); });
+        c.on("data", m => {
+          if (!m || m.t !== "p" || !m.pres || typeof m.pres !== "object") return;
+          if (JSON.stringify(m.pres).length > 4096) return;
+          if (setP(c.peer, m.pres)) { fire(); broadcast(); }
+        });
+        const gone = () => { conns.delete(c.peer); if (peers.delete(c.peer)) { fire(); broadcast(); } };
+        c.on("close", gone); c.on("error", gone);
+      });
+      // Señal periódica para que los jugadores detecten si el anfitrión se fue
+      setInterval(() => { conns.forEach(c => { if (c.open) { try { c.send({ t: "ping" }); } catch (e) { } } }); }, 4000);
+    } else {
+      await new Promise((resolve, reject) => {
+        let done = false;
+        const fail = code => { if (done) return; done = true; try { peer.destroy(); } catch (e) { } reject({ code }); };
+        const t = setTimeout(() => fail("not_found"), 12000);
+        peer.on("error", err => { if (err && err.type === "peer-unavailable") fail("not_found"); });
+        hubConn = peer.connect(hubId, { reliable: true });
+        hubConn.on("open", () => { if (done) return; done = true; clearTimeout(t); resolve(); });
+        hubConn.on("error", () => fail("not_found"));
+      });
+      let lastHeard = Date.now();
+      const dropHub = () => { for (const id of [...peers.keys()]) if (id !== myId) peers.delete(id); fire(); };
+      setInterval(() => { if (!closed && Date.now() - lastHeard > 15000) dropHub(); }, 3000);
+      hubConn.on("data", m => {
+        lastHeard = Date.now();
+        if (!m || m.t !== "peers" || !Array.isArray(m.list)) return;
+        const seen = new Set();
+        for (const [id, pres] of m.list) { if (id === myId) continue; seen.add(id); setP(id, pres || {}); }
+        for (const id of [...peers.keys()]) if (id !== myId && !seen.has(id)) peers.delete(id);
+        fire();
+      });
+      hubConn.on("close", dropHub);
+    }
+
+    return {
+      name,
+      presence: async patch => {
+        if (closed) throw { code: "closed" };
+        mine = Object.assign({}, mine, patch);
+        for (const k in patch) if (patch[k] === null) delete mine[k];
+        setP(myId, Object.assign({}, mine)); fire();
+        if (hub) broadcast();
+        else if (hubConn && hubConn.open) hubConn.send({ t: "p", pres: mine });
+        else throw { code: "disconnected" };
+      },
+      onPeers: (h) => { handlers.push(h); fire(); return () => { const i = handlers.indexOf(h); if (i >= 0) handlers.splice(i, 1); }; },
+      peers: snap,
+      connected: () => !closed && !peer.disconnected,
+      leave: async () => { closed = true; try { peer.destroy(); } catch (e) { } }
+    };
+  }
+
+  window.claude = { use: async n => (n === "room" && PeerCls() ? { join } : null) };
+})();
+
+</script>
+<script>
+/* ===================== Banco de preguntas ===================== */
+const BANK = [];
+function M(t, s, q, ok, no, e) { BANK.push({ t, s, q, opts: [ok, ...no], c: 0, e, tf: false }); }
+function V(t, s, q, v, e) { BANK.push({ t, s, q, opts: ["Verdadero", "Falso"], c: v ? 0 : 1, e, tf: true }); }
+// Tema 4. Administración de las estructuras de memoria
+// M(tema, seccion, pregunta, correcta, [incorrectas], explicacion)
+// V(tema, seccion, afirmacion, esVerdadera, explicacion)
+M(4,"4.1","¿Qué forma una instancia de Oracle?","Procesos y estructuras de memoria",["Data files, control files y redo logs","La CDB y todas sus PDBs","El listener y el archivo de passwords"],"La instancia son procesos más memoria; los archivos forman la base de datos.");
+M(4,"4.1","En la CDB del curso, ¿cuánta memoria de instancia comparten cdb$root, pdb$seed y las PDBs?","Una sola SGA, porque todas usan la misma instancia",["Una SGA por cada PDB abierta","Una SGA para la raíz y otra compartida por las PDBs","Ninguna; cada PDB solo usa PGA"],"En instancia única hay una instancia para toda la CDB y todos los contenedores comparten su memoria.");
+M(4,"4.1","¿Qué es una sesión?","El estado lógico de un usuario autenticado, guardado en memoria de la instancia",["El canal de red o IPC por el que el cliente habla con la instancia", "El programa cliente, como sqlplus, que envía las sentencias", "El proceso del S.O. que ejecuta el SQL en nombre del usuario"],"La conexión es el canal; la sesión es el estado del usuario autenticado.");
+V(4,"4.1","Una conexión puede tener cero, una o varias sesiones.",true,"Conexión y sesión son conceptos distintos: una conexión puede llevar varias sesiones.");
+M(4,"4.2","¿Qué hace `startup nomount` respecto a la memoria?","Reserva la SGA e inicia los background processes",["Lee los control files","Abre los data files","Crea las PGA de todas las sesiones futuras"],"En nomount solo existen los parámetros, la SGA y los procesos; no se abre ningún archivo de la BD.");
+M(4,"4.2","¿Qué es la MGA?","Memoria semi-compartida entre un grupo reducido de procesos, organizada en namespaces",["La porción fija de la SGA que guarda el estado general de la instancia", "Memoria privada de cada server process, igual que la PGA", "El área donde el listener guarda los servicios registrados"],"Managed Global Area: se asigna por demanda y en Linux vive en archivos de /dev/shm.");
+M(4,"4.3","En el curso, ¿de qué tamaño es un granule?","4 MB",["8 KB","1 MB","64 MB"],"Con memory_max_target = 2048M el granule mide 4 MB.");
+M(4,"4.3","Con memory_max_target = 2048M y granule de 4 MB, ¿cuántos granules tiene la SGA?","512",["256","1024","2048"],"2048 / 4 = 512 granules (y 512 archivos mapeados en /dev/shm).");
+M(4,"4.3","Con AMM, el total de `show sga` se parece más a...","memory_max_target",["memory_target","pga_aggregate_target","db_cache_size"],"La instancia reserva espacio para que la SGA pueda crecer hasta memory_max_target.");
+M(4,"4.3","¿Qué vista muestra el historial de cambios de tamaño de los componentes de la SGA?","`v$sga_resize_ops`",["`v$sgastat`","`v$sga`","`v$buffer_pool`"],"v$sga_resize_ops (y v$memory_resize_ops para AMM) registran cada ajuste desde el arranque.");
+V(4,"4.3","La instancia incrementa memory_target por su cuenta cuando necesita más memoria.",false,"Nunca: solo el DBA lo modifica. AMM reparte dentro de ese presupuesto.");
+M(4,"4.3.1","¿Qué es una lectura lógica?","El bloque se encontró en el buffer cache (cache hit)",["El bloque se leyó del data file","Una lectura del diccionario de datos","Una lectura directa a la PGA"],"Lectura lógica = cache hit; lectura física = cache miss y lectura del data file.");
+M(4,"4.3.1","Un buffer que contiene cambios aún no escritos al data file está...","Dirty",["Clean","Unused","Pinned"],"Antes de reutilizar un buffer dirty hay que escribirlo a disco (lo hace DBW).");
+M(4,"4.3.1","¿Para qué sirve el keep pool?","Retener bloques de objetos pequeños muy consultados",["Descartar rápido bloques de tablas grandes","Guardar bloques de otro tamaño","Guardar el redo"],"Keep retiene; recycle descarta en cuanto dejan de usarse.");
+M(4,"4.3.1","Si db_keep_cache_size vale 0 y asignas una tabla a `buffer_pool keep`, ¿qué pasa?","Sus bloques van al default pool",["Error al crear la tabla","La tabla no se puede consultar","Se crea el keep pool automáticamente"],"Con valor 0 el pool no existe y se usa el default.");
+M(4,"4.3.1","¿Cuál es el algoritmo de reemplazo de buffers por default?","LRU con touch count",["FIFO","Por temperatura de objeto","Aleatorio"],"El touch count evita que un bloque leído una vez desplace a los populares.");
+M(4,"4.3.1","¿Qué es un direct path read?","Leer una tabla grande directo a la PGA sin pasar por el buffer cache",["Leer un registro usando su ROWID desde un índice B-tree", "Leer los bloques más usados directamente del keep pool", "Leer bloques de la Smart Flash Cache en lugar del disco"],"Se usa con tablas grandes para no saturar el buffer cache.");
+M(4,"4.3.1","Al configurar Smart Flash Cache en la edición Free y reiniciar, ¿qué ocurre?","La instancia no arranca (ORA-00439)",["Arranca, pero la flash cache se queda deshabilitada", "El parámetro se ignora y se registra un aviso en el alert log", "Arranca solo en nomount hasta corregir el spfile"],"Free no incluye la funcionalidad; hay que corregir el spfile desde un pfile.");
+V(4,"4.3.1","Un `commit` provoca que DBW escriba los buffers dirty de la transacción.",false,"El commit escribe REDO (LGWR); los bloques los escribe DBW después.");
+M(4,"4.3.1","¿Qué modo de acceso lee la versión más reciente del bloque, incluidos cambios no confirmados?","Current mode",["Consistent mode","Read only mode","Direct mode"],"Current se usa para modificar y cuando la transacción consulta sus propios cambios.");
+M(4,"4.3.1","¿Con qué se construye un bloque CR (consistent read)?","Copiando el bloque y aplicándole undo",["Con el redo del online redo log","Leyendo el data file otra vez","Con el result cache"],"El undo permite reconstruir la versión anterior a los cambios no confirmados.");
+M(4,"4.3.1","Sesión 1 actualizó una calificación de 10 a 5 sin commit. ¿Qué ve la sesión 2 al consultarla?","10",["5","Error ORA por bloqueo","Nada; espera al commit"],"En read committed lectores y escritores no se bloquean; ve el valor confirmado.");
+M(4,"4.3.1","¿Qué mecanismo implementa la DURABILIDAD de ACID?","Redo escrito por LGWR al hacer commit",["Undo","Bloques CR","Restricciones de integridad"],"El commit termina cuando el redo está en disco.");
+M(4,"4.3.1","¿Qué mecanismo implementa el AISLAMIENTO en read committed?","Consistent mode con bloques CR",["Redo escrito por LGWR antes del commit", "La regla write-ahead entre DBW y LGWR", "Bloqueos de lectura sobre cada registro consultado"],"Cada consulta ve datos confirmados antes de su inicio.");
+V(4,"4.3.1","True Cache es un pool más dentro del buffer cache.",false,"True Cache es OTRA instancia que mantiene bloques en memoria y atiende consultas de solo lectura.");
+V(4,"4.3.2","Se genera redo también para los cambios en bloques de undo.",true,"Así el redo protege también al undo, necesario para el rollback tras una falla.");
+M(4,"4.3.2","¿Cuál NO provoca una escritura de LGWR?","Que el buffer cache tenga 10% de buffers dirty",["Un commit","Que pasen 3 segundos","Que el redo log buffer esté a un tercio o tenga 1 MB"],"También escribe por write-ahead cuando DBW lo necesita.");
+M(4,"4.3.2","¿Qué establece la regla write-ahead?","El redo de un cambio llega a disco antes que el cambio mismo",["Los data files se escriben antes que el redo","El undo se escribe antes que el redo","LGWR espera a DBW"],"Antes de escribir un buffer dirty, su redo ya debe estar en disco.");
+M(4,"4.3.2","¿Cómo es el parámetro log_buffer?","Estático: requiere reiniciar",["Dinámico","Lo ajusta AMM","Solo se modifica por PDB"],"El redo log buffer no se ajusta automáticamente.");
+M(4,"4.3.2","Justo después del commit, ¿dónde está YA garantizado el cambio?","En los online redo logs",["En los data files","Solo en el buffer cache","En el archived redo log"],"Los data files pueden seguir con el valor anterior hasta que DBW escriba.");
+M(4,"4.3.2","Tras una falla de instancia, ¿qué fase reaplica el redo?","Roll forward",["Rollback","Checkpoint","Log switch"],"Luego el rollback deshace con undo lo no confirmado.");
+M(4,"4.3.2","Hiciste update SIN commit y se fue la luz. Al arrancar, ¿qué le pasa a tu cambio?","Se deshace en la fase de rollback",["Se conserva","Se pierde el data file","Queda en duda hasta que RECO lo resuelva"],"La instance recovery aplica el redo y luego deshace lo no confirmado.");
+M(4,"4.3.3","¿Dónde se guardan el texto, la versión analizada y el plan de una sentencia SQL?","Library cache",["Data dictionary cache","Buffer cache","Large pool"],"Es parte del shared pool.");
+M(4,"4.3.3","Reutilizar una sentencia ya analizada se llama...","Soft parse",["Hard parse","Direct path","Full scan"],"El hard parse verifica sintaxis, consulta el diccionario y genera un plan nuevo: es mucho más caro.");
+M(4,"4.3.3","¿Por qué `where id = 1` y `where id = 2` provocan cada una un hard parse?","Porque el texto no es idéntico",["Porque cambian los datos","Porque el plan expira","Porque usan índices distintos"],"Solo se reutiliza una sentencia con texto exactamente igual; la solución son variables de enlace.");
+M(4,"4.3.3","¿Cuál es una variable de ENLACE?","`where email = :email`",["`where email = '&email'`","`where email = 'a@b.mx'`","`where email = &&email`"],"La de enlace envía el valor por separado; la de sustitución (&) reemplaza texto en el cliente.");
+M(4,"4.3.3","En SQL dinámico con execute immediate, ¿cómo se pasan los valores de los binds?","Con la cláusula `using`",["Concatenándolos al texto","Con la cláusula `into`","Con `&` de SQL*Plus"],"Concatenar provoca hard parses y abre la puerta a la inyección SQL.");
+V(4,"4.3.3","En SQL estático dentro de PL/SQL, las variables se convierten en binds automáticamente.",true,"El compilador las convierte (por ejemplo en :B1); en SQL dinámico no.");
+M(4,"4.3.3","Además del hard parse, ¿qué riesgo tiene concatenar un parámetro en SQL dinámico?","Inyección SQL",["Deadlock","ORA-00845","Pérdida de redo"],"Un valor como `c1' or 1='1` cambia la lógica de la consulta.");
+M(4,"4.3.3","En v$librarycache, ¿qué indica un valor alto de `reloads`?","Objetos que salieron por falta de espacio: shared pool pequeño",["Muchas sentencias reutilizadas con soft parse exitoso", "Tablas modificadas que invalidaron sus estadísticas", "Exceso de redo generado por las sesiones activas"],"pinhitratio cercano a 1 es bueno; reloads alto sugiere shared pool pequeño.");
+M(4,"4.3.3","5 sesiones ejecutan `select * from mytable`. ¿Cuántas shared SQL areas hay?","1",["5","0","10"],"Hay 1 shared SQL area y 5 private SQL areas.");
+M(4,"4.3.3","En modo dedicado, ¿dónde está la private SQL area?","En la PGA",["En el library cache","En el large pool","En /dev/shm"],"Guarda valores de binds y estado de ejecución de cada sesión.");
+M(4,"4.3.3","¿Por qué al data dictionary cache se le llama row cache?","Guarda los datos del diccionario como renglones, no como bloques",["Porque guarda los ROWID de todas las tablas del diccionario", "Porque es la parte del bloque llamada row directory", "Porque guarda en memoria filas de las tablas de usuario"],"Responde rápido si la tabla existe, sus columnas y privilegios.");
+M(4,"4.3.3","¿Qué guarda el server result cache?","Resultados finales de consultas y funciones PL/SQL",["Bloques de datos leídos de los data files más consultados", "Planes de ejecución y texto analizado de las sentencias", "Redo records pendientes de escribir al online redo log"],"Por default solo guarda consultas con el hint result_cache.");
+M(4,"4.3.3","¿Qué parámetro deshabilita el result cache si vale 0?","`result_cache_max_size`",["`shared_pool_size`","`db_cache_size`","`open_cursors`"],"El result cache se invalida al cambiar los datos de los objetos usados.");
+M(4,"4.3.3","¿Para qué existe el reserved pool?","Asignaciones contiguas grandes en el shared pool",["Guardar bloques de tablas keep","Guardar la UGA en modo compartido","Reservar memoria para RMAN"],"Protege al resto del shared pool de la fragmentación; default 5%.");
+M(4,"4.3.3","¿Qué error indica falta de memoria contigua en el shared pool?","ORA-04031",["ORA-04036","ORA-00845","ORA-01653"],"Apareció al crear el diccionario en la práctica 06 con memory_target = 768M.");
+M(4,"4.3.4","¿Dónde está la UGA en modo COMPARTIDO?","En el large pool (o shared pool si no existe)",["En la PGA del shared server que atiende cada llamada", "En el buffer cache, junto a los bloques de la sesión", "En la PGA del dispatcher que recibió la conexión"],"Varias sesiones comparten server processes, así que el estado va a la SGA.");
+M(4,"4.3.4","¿Cuál NO es un uso del large pool?","Library cache",["UGA en modo compartido","Buffers de RMAN","Deferred insert pool"],"El library cache está en el shared pool.");
+M(4,"4.3.4","Las inserciones con fast ingest (memoptimize_write)...","No generan undo ni redo y pueden perderse si la instancia falla",["Se escriben al instante en disco al hacer commit", "Generan undo y se pueden revertir con rollback", "La sesión las ve de inmediato aunque no estén en disco"],"Se escriben a disco por lotes de forma asíncrona.");
+V(4,"4.3.4","Los datos en el deferred insert pool pueden consultarse por la sesión que los insertó.",false,"No se pueden consultar hasta que se escriben a disco.");
+M(4,"4.3.5","¿Qué formato usa el In-Memory column store?","Columnar: los valores de cada columna juntos y comprimidos",["Por renglón, igual que el buffer cache pero sin comprimir", "Bloques de 32 KB con registros completos ordenados", "Índices B-tree en memoria sobre las columnas elegidas"],"Favorece consultas analíticas sobre pocas columnas.");
+M(4,"4.3.5","¿Cuál es el valor default de inmemory_size?","0 (deshabilitada)",["200 MB","16 GB","10% de la SGA"],"Habilitarla requiere reiniciar la instancia.");
+V(4,"4.3.5","Si una tabla está en el column store, el optimizador decide si usa el formato columnar o el buffer cache.",true,"Ambos formatos coexisten y la base los mantiene consistentes.");
+M(4,"4.4","¿Dónde se ordenan los registros de un `order by` grande?","En la sort area de la PGA y, si no cabe, en el tablespace temporal",["En el buffer cache, reutilizando los buffers clean", "En el shared pool, junto al plan de la sentencia", "En el large pool, aunque la conexión sea dedicada"],"Las SQL work areas están en la PGA.");
+M(4,"4.4","Una work area que hace varias pasadas por el tablespace temporal es...","Multipass",["Optimal","One-pass","Direct path"],"Optimal = todo en memoria; one-pass = una pasada; multipass = varias (impacto severo).");
+M(4,"4.4","¿Cuándo se usan sort_area_size y hash_area_size?","Solo con workarea_size_policy = manual",["Siempre, como tope de cada work area de la sesión", "Solo cuando la instancia usa AMM con memory_target", "Solo en sesiones conectadas en modo compartido"],"Con la política auto (default) la instancia calcula el tamaño.");
+M(4,"4.4","¿Qué diferencia hay entre pga_aggregate_target y pga_aggregate_limit?","El target es un objetivo que puede excederse; el limit es un tope",["Son sinónimos; el segundo es el nombre anterior", "El limit siempre es menor que el target y nunca se alcanza", "El target es estático y el limit es el valor dinámico"],"La memoria no ajustable puede hacer que se exceda el target.");
+M(4,"4.4","¿Qué error se produce al exceder pga_aggregate_limit?","ORA-04036",["ORA-04031","ORA-01652","ORA-00028"],"Se terminan llamadas y luego sesiones con más memoria no ajustable.");
+M(4,"4.6","¿Qué parámetro define el presupuesto en AMM?","`memory_target`",["`sga_target`","`memory_size`","`pga_aggregate_limit`"],"memory_target es dinámico; memory_max_target es estático.");
+M(4,"4.6","memory_size=0, memory_target=0, sga_target>0. ¿Qué modo usa la instancia?","ASMM",["AMM","Unified Memory","Manual"],"Con sga_target la instancia reparte dentro de la SGA y la PGA se administra aparte.");
+M(4,"4.6","¿Qué recomienda la documentación para una instancia de más de 4 GB?","ASMM",["AMM","Manual","Unified Memory siempre"],"AMM hasta 4 GB; en Linux AMM no es compatible con HugePages.");
+M(4,"4.6","Con AMM, si además configuras sga_target = 600M, ¿qué significa?","Mínimo garantizado para la SGA",["Máximo que puede alcanzar la SGA", "Se ignora mientras exista memory_target", "Se desactiva AMM y se pasa a ASMM"],"Con AMM, sga_target y pga_aggregate_target actúan como mínimos.");
+M(4,"4.6","¿Qué error da memory_max_target mayor que /dev/shm?","ORA-00845",["ORA-56752","ORA-04031","ORA-00439"],"Con AMM la SGA se crea en /dev/shm.");
+M(4,"4.6","¿Qué error da al arrancar con memoria mayor al tope de la edición Free (2 GB)?","ORA-56752",["ORA-00845","ORA-56747","ORA-04036"],"El valor se acepta en el spfile pero la instancia no arranca.");
+V(4,"4.6","Si el spfile tiene memory_size y memory_target, la instancia arranca con Unified Memory sin avisar.",true,"Deja memory_target y memory_max_target en cero; para volver a AMM: alter system reset memory_size.");
+M(4,"4.7","¿Con qué modo de memoria tienen EFECTO los límites de memoria por PDB?","ASMM (sga_target en root, sin memory_target)",["AMM (memory_target en root)", "Cualquier modo de administración", "Solo administración manual de la SGA"],"Con AMM el alter system en la PDB se acepta pero no se aplica.");
+M(4,"4.7","¿Qué error se obtiene al poner en una PDB un sga_target mayor que el de cdb$root?","ORA-56747",["ORA-56752","ORA-01950","ORA-04031"],"Los valores de la PDB deben ser menores que los de la raíz.");
+M(4,"4.8","¿Por qué `ls /dev/shm` no muestra los archivos de la SGA?","Se mapean en memoria y luego se borran del directorio (unlink)",["Están en $ORACLE_HOME/dbs y no en /dev/shm", "Son archivos ocultos cuyo nombre empieza con punto", "Solo el usuario root puede listarlos en el contenedor"],"La memoria sigue existiendo mientras algún proceso la tenga mapeada.");
+M(4,"4.8","En el curso, ¿cuál es el límite de memoria EFECTIVO de la instancia?","El tope de 2 GB de la edición Free",["Los 4 GB de /dev/shm","La RAM del equipo","memory_target de 768 MB siempre"],"La capa más restrictiva que no se puede cambiar sin reiniciar es el tope de Free.");
+
+// Tema 5. Administración de procesos
+M(5,"5.1","¿Qué es un user process?","La aplicación cliente que se conecta, como sqlplus",["El proceso que ejecuta el SQL en el servidor","Un background process de la instancia","El listener"],"El server process atiende al user process en el servidor.");
+M(5,"5.1","¿Cómo se llaman los background processes en el contenedor del curso?","`db_<proceso>_<sid>`, por ejemplo db_pmon_free",["`ora_<proceso>_<sid>`, por ejemplo ora_pmon_free", "`oracle<sid>`, por ejemplo oraclefree", "`<sid>_<proceso>`, por ejemplo free_pmon"],"Los server processes, en cambio, se llaman oracle<sid>.");
+M(5,"5.1","¿Cuál de estos es un daemon, no un proceso de la instancia?","El listener",["PMON","LGWR","DBW0"],"Los daemons no pertenecen a una instancia y pueden servir a varias bases.");
+M(5,"5.1","¿Qué distingue a un hilo de un proceso?","El hilo comparte la memoria del proceso al que pertenece",["El hilo tiene su propio PID","El hilo es más costoso de crear","Una falla del hilo nunca afecta al proceso"],"Los hilos tienen TID/LWP dentro del PID de su proceso.");
+M(5,"5.1","`ps -L -p <pid de db_bg00>` muestra 12 renglones con el mismo PID. ¿Qué significa?","Un proceso del S.O. con 12 hilos",["Doce procesos del S.O. distintos", "Doce sesiones de usuario abiertas", "Doce PDBs abiertas en la CDB"],"BGnn agrupa varios hilos para tareas de mantenimiento.");
+M(5,"5.1","¿Por qué el curso usa threaded_execution = false?","El modo multihilo no soporta autenticación por S.O. (`/ as sysdba`)",["La edición Free no permite ejecutar procesos como hilos", "El modo multihilo consume más memoria que el de procesos", "En modo multihilo PMON deja de existir como proceso"],"En multihilo solo unos pocos procesos siguen siendo procesos del S.O.");
+M(5,"5.2","¿Cuál es el modo de conexión por default?","Dedicado",["Compartido","DRCP","Multihilo"],"Un server process exclusivo por conexión.");
+M(5,"5.2","En modo dedicado, ¿dónde está la UGA?","En la PGA del server process",["En el large pool","En la request queue","En el control file"],"En modo compartido va a la SGA.");
+M(5,"5.2","¿Qué es una conexión bequeath?","Una conexión local donde el cliente crea el server process como hijo",["Una conexión por red que pasa siempre por el listener", "Una conexión que el broker asigna a un pooled server", "Una conexión que el dispatcher atiende con shared servers"],"Hereda el canal de comunicación y no requiere red.");
+V(5,"5.2","Una conexión bequeath siempre es dedicada.",true,"El modo compartido requiere Oracle Net (pasar por el listener).");
+M(5,"5.2","En `ps -ef`, el server process creado por el listener aparece con...","`(LOCAL=NO)` y PPID 1",["`(LOCAL=YES)` y PPID del sqlplus","`db_s000_free`","`(PROTOCOL=beq)`"],"El listener se desliga del proceso; el de bequeath tiene como padre a sqlplus.");
+M(5,"5.2","¿Qué hace el dedicated broker?","Crea server processes dedicados dentro de la instancia",["Entrega conexiones DRCP a los pooled servers del pool", "Recibe peticiones y las deja en la request queue", "Registra los servicios de la instancia en el listener"],"Se habilita con use_dedicated_broker; no confundir con el connection broker de DRCP.");
+M(5,"5.2","En modo compartido, ¿con qué proceso se comunica el cliente?","Un dispatcher (Dnnn)",["Un shared server (Snnn)","Un connection broker (Nnnn)","PMON"],"El dispatcher coloca las peticiones en la request queue.");
+M(5,"5.2","¿Dónde está la request queue del modo compartido?","En la SGA, y es común a todos los dispatchers",["En la PGA de cada dispatcher, una por dispatcher", "En el listener, que la reparte entre los dispatchers", "En un archivo de traza de cada shared server"],"Las response queues son una por dispatcher.");
+M(5,"5.2","¿Qué es un virtual circuit?","Memoria compartida por conexión con sus peticiones y respuestas",["Un enlace de red entre dos bases de datos remotas", "Un hilo de BGnn dedicado a cada conexión compartida", "Un grupo de redo log asignado a cada dispatcher"],"El dispatcher crea uno por cada conexión compartida.");
+M(5,"5.2","¿Qué error se obtiene al intentar `shutdown` desde una sesión por dispatcher?","ORA-00106",["ORA-00028","ORA-01013","ORA-00845"],"Las tareas administrativas se hacen en modo dedicado.");
+M(5,"5.2","¿En qué caso conviene el modo compartido?","OLTP con miles de conexiones casi siempre inactivas",["Procesos batch largos que están activos todo el tiempo", "Respaldos y recuperación con RMAN en horas pico", "Sesiones de administración que crean índices grandes"],"Su beneficio es la escalabilidad; las sesiones muy activas no lo aprovechan.");
+M(5,"5.2","¿Qué único parámetro es REQUERIDO para habilitar el modo compartido?","`shared_servers` mayor a cero",["`max_shared_servers`","`circuits`","`shared_server_sessions`"],"Si solo se configura dispatchers, shared_servers toma el valor 1.");
+V(5,"5.2","Los dispatchers se crean bajo demanda hasta max_dispatchers.",false,"No se crean bajo demanda: para agregar más hay que modificar el parámetro dispatchers.");
+M(5,"5.2","Para 5000 clientes, ¿qué modo requiere MENOS memoria según la documentación?","DRCP (≈ 615 MB)",["Dedicado (≈ 22 GB)","Compartido (≈ 2.5 GB)","Todos igual"],"DRCP reutiliza procesos y sesiones.");
+M(5,"5.2","¿Qué valor de SERVER en CONNECT_DATA pide DRCP?","POOLED",["SHARED","DEDICATED","DRCP"],"En Easy Connect: host:1521/servicio:pooled.");
+M(5,"5.2","Si el servicio tiene dispatchers registrados y no indicas SERVER, el listener usa...","El modo compartido",["El modo dedicado","DRCP","Bequeath"],"SERVER=DEDICATED fuerza el dedicado aunque haya dispatchers.");
+M(5,"5.2","¿Qué vista muestra los shared servers y su estado WAIT(COMMON)?","`v$shared_server`",["`v$dispatcher`","`v$circuit`","`v$queue`"],"WAIT(COMMON) = libre esperando en la request queue.");
+M(5,"5.2","En v$queue, ¿qué tipo tiene la request queue?","COMMON",["DISPATCHER","SHARED","REQUEST"],"Las response queues son de tipo DISPATCHER.");
+M(5,"5.2","¿Qué proceso ejecuta las sentencias en DRCP?","Pooled server (Lnnn)",["Shared server (Snnn)","Dispatcher (Dnnn)","Connection broker (Nnnn)"],"El broker entrega la conexión; el pooled server atiende directo al cliente.");
+M(5,"5.2","¿Qué reutiliza DRCP que el modo compartido no?","Las sesiones, además de los procesos",["Los dispatchers, además de los procesos", "La request queue común en la SGA", "Los grupos de redo de cada sesión"],"Un pooled server equivale a un server process dedicado junto con su sesión.");
+M(5,"5.2","En DRCP, ¿dónde está la UGA?","En la PGA del pooled server",["En la SGA","En el connection broker","En el listener"],"En compartido está en la SGA.");
+M(5,"5.2","¿Qué pasa si el pool DRCP llegó a maxsize y no hay pooled servers libres?","La petición espera en cola",["Se crea un server dedicado","Error inmediato","Se usa un shared server"],"Si no llegó al máximo, el broker crea más pooled servers.");
+M(5,"5.2","¿Cuál es el default de maxsize en el pool de DRCP?","40",["4","100","Ilimitado"],"minsize 4, maxsize 40, incrsize 2, inactivity_timeout 300 s, max_think_time 120 s.");
+M(5,"5.2","¿Cómo se inicia el pool por default de DRCP?","`exec dbms_connection_pool.start_pool();`",["Se inicia solo con la instancia","`alter system set drcp=true;`","`lsnrctl start pool`"],"El pool sys_default_connection_pool ya existe pero hay que iniciarlo.");
+V(5,"5.2","Después de reiniciar la instancia, el pool de DRCP queda detenido y hay que volver a iniciarlo.",false,"Sigue iniciado tras reiniciar hasta ejecutar stop_pool.");
+M(5,"5.2","En v$cpool_stats, ¿qué cuenta num_hits?","Peticiones que reutilizaron una sesión del pool",["Conexiones rechazadas por haber llegado a maxsize", "Sesiones nuevas que hubo que crear en el pool", "Errores del connection broker desde el arranque"],"num_misses cuenta las veces que hubo que crear sesión nueva.");
+M(5,"5.2","¿Qué proceso inicia y detiene los connection brokers y pooled servers?","PMAN",["PMON","SMON","LREG"],"PMAN también maneja dispatchers, shared servers y jobs.");
+M(5,"5.3","¿Cuándo se inician los background processes?","Con la instancia, y se detienen con ella",["Cuando se conecta el primer usuario","Al abrir cada PDB","Cuando lo pide el listener"],"Hay obligatorios y opcionales según las funcionalidades activas.");
+M(5,"5.3","¿Cuál es un background process OPCIONAL?","ARCn",["PMON","SMON","LGWR"],"ARCn solo existe en modo archivelog.");
+M(5,"5.3","¿Qué hace PMON?","Detecta procesos terminados anormalmente",["Escribe redo","Registra servicios en el listener","Toma snapshots del AWR"],"La detección es de PMON; la limpieza la hacen CLMN y CLnn.");
+M(5,"5.3","¿Quién COORDINA la limpieza de un proceso terminado?","CLMN",["PMON","PMAN","SMON"],"CLnn son sus auxiliares para limpiar en paralelo.");
+V(5,"5.3","Es normal que no exista ningún proceso CLnn.",true,"Su número es proporcional a la limpieza pendiente.");
+M(5,"5.3","¿Qué hace el PMON group con un recurso dañado que no puede limpiar?","Lo aísla (quarantine)",["Detiene la instancia","Lo ignora","Lo manda al listener"],"Se consulta en v$quarantine.");
+M(5,"5.3","¿Qué recibe una sesión terminada con alter system kill session al ejecutar algo?","ORA-00028: your session has been killed",["ORA-00106: cannot startup/shutdown via dispatcher", "ORA-01013: user requested cancel of current operation", "ORA-03113: end-of-file on communication channel"],"Su transacción sin commit ya fue deshecha.");
+M(5,"5.3","¿Qué formato usa alter system kill session?","`'<sid>,<serial#>,@<inst_id>'`",["`'<spid>'`, el PID del sistema operativo", "`'<username>'`, el nombre del usuario", "`'<serial#>,<sid>'` sin la instancia"],"Por ejemplo: alter system kill session '74,18605,@1';");
+M(5,"5.3","¿Qué vista muestra KILLED SESSION con estado RESOURCES FREED?","`v$dead_cleanup`",["`v$cleanup_process`","`v$session`","`v$quarantine`"],"Muestra dead_time y cleanup_attempts.");
+M(5,"5.3","Un dispatcher muere de forma anormal. ¿Quién inicia su reemplazo?","PMAN",["PMON","CLMN","LREG"],"PMON detecta, el PMON group limpia y PMAN inicia el nuevo proceso.");
+M(5,"5.3","¿Qué proceso realiza la recuperación de instancia durante el arranque?","SMON",["PMON","CKPT","RECO"],"También libera segmentos temporales y administra el undo.");
+M(5,"5.3","¿Qué proceso mantiene la tabla que relaciona SCNs con fechas?","SMON",["MMON","CKPT","LGWR"],"La usa Flashback.");
+M(5,"5.3","¿Qué hace LREG?","Registra servicios y handlers en el listener",["Escribe el redo log buffer en el online redo log", "Limpia las sesiones terminadas de forma anormal", "Copia los grupos de redo llenos a los archivados"],"`alter system register;` fuerza el registro inmediato.");
+M(5,"5.3","¿Cada cuánto revisa DBW si tiene trabajo pendiente?","Al menos cada 3 segundos",["En cada commit","Cada hora","Solo en un checkpoint"],"Escribe con la menor frecuencia posible y en lotes.");
+M(5,"5.3","¿Cómo son las escrituras de DBW comparadas con las de LGWR?","Dispersas, frente a las secuenciales de LGWR",["Secuenciales, frente a las dispersas de LGWR","Ambas secuenciales","Ambas dispersas"],"Por eso DBW junta lotes de bloques (multiblock writes).");
+M(5,"5.3","¿Qué rango admite db_writer_processes?","1 a 100",["1 a 10","1 a 36","0 a 8"],"Nombres DBW0-DBW9, DBWa-DBWz y BW36-BW99.");
+V(5,"5.3","Configurar varios DBW en un sistema con un solo procesador mejora el desempeño.",false,"Con un solo procesador no aporta beneficio.");
+M(5,"5.3","¿Cuántos LGWR hay por instancia?","Uno",["Uno por grupo de redo","Uno por CPU","Uno por PDB"],"En multiprocesador crea auxiliares LGnn.");
+M(5,"5.3","Si el redo log está multiplexado, LGWR escribe en...","Todos los miembros del grupo actual",["Solo el primer miembro; los demás se copian después", "Un miembro al azar de cada grupo, por turnos", "Todos los grupos a la vez, uno por miembro"],"Cada miembro es una copia idéntica en otro disco.");
+M(5,"5.3","¿Cómo se llama el evento de espera de una sesión que espera a LGWR en el commit?","log file sync",["db file sequential read","log file switch","buffer busy waits"],"El commit termina cuando LGWR confirma la escritura.");
+V(5,"5.3","El SCN solo avanza cuando alguien hace commit.",false,"Es un reloj lógico que avanza continuamente; el commit SCN identifica la confirmación.");
+M(5,"5.3","¿Qué ocurre en un log switch?","LGWR pasa a escribir en el siguiente grupo de redo",["DBW escribe todo el buffer cache a los data files", "La instancia se reinicia para cambiar de grupo", "MMON purga los snapshots más antiguos del AWR"],"Se fuerza con alter system switch logfile.");
+M(5,"5.3","En archivelog, si ARCn no termina de copiar un grupo que LGWR necesita reutilizar...","La base espera",["LGWR lo sobrescribe","Se crea un grupo nuevo","Se cambia a noarchivelog"],"Por eso se recomiendan al menos tres grupos.");
+M(5,"5.3","¿Cuál es el modo por default de una base nueva?","NOARCHIVELOG, sin procesos ARCn",["ARCHIVELOG, con un proceso ARC0", "FORCE LOGGING en todos los tablespaces", "ARCHIVELOG solo si hay Fast Recovery Area"],"Se consulta con select log_mode from v$database.");
+M(5,"5.3","¿Qué hace CKPT?","Registra el checkpoint en los headers de data files y en los control files",["Escribe los bloques dirty del buffer cache en los data files", "Escribe el redo log buffer en el online redo log", "Copia los redo logs llenos a los archived redo logs"],"CKPT NO escribe bloques ni redo: eso es de DBW y LGWR.");
+M(5,"5.3","¿Qué define la checkpoint position?","El buffer dirty más antiguo",["El último commit","El grupo de redo actual","El snapshot más reciente"],"Indica desde qué punto del redo inicia la recuperación.");
+M(5,"5.3","¿Qué tipo de checkpoint ocurre con `alter system checkpoint`?","Thread checkpoint",["Incremental checkpoint","Tablespace checkpoint","Ninguno"],"También ocurre en un shutdown ordenado y en un log switch.");
+M(5,"5.3","Poner un tablespace en read only provoca un...","Tablespace / data file checkpoint",["Thread checkpoint de toda la instancia", "Log switch al siguiente grupo de redo", "Instance recovery del tablespace"],"Solo se escriben los dirty de esos data files.");
+M(5,"5.3","¿Qué parámetro fija el tiempo objetivo de recuperación en segundos?","`fast_start_mttr_target`",["`log_checkpoint_timeout`","`undo_retention`","`db_writer_processes`"],"Regula qué tan agresivo es DBW.");
+M(5,"5.3","Además del checkpoint, ¿qué revisa CKPT cada 3 segundos?","Si la PGA excede pga_aggregate_limit",["Si el listener está activo","Si hay jobs pendientes","Si hay transacciones en duda"],"Si es así, aborta llamadas y termina sesiones.");
+M(5,"5.3","¿Dónde guarda MMON los snapshots del AWR?","En el tablespace sysaux",["En system","En el buffer cache","En el alert log"],"Default: cada hora, conservados 8 días.");
+M(5,"5.3","¿Qué ejecuta MMON después de cada snapshot?","ADDM",["RMAN","Data Pump","dbms_stats"],"ADDM busca la causa raíz de problemas y recomienda.");
+V(5,"5.3","MMON recolecta las estadísticas del optimizador y las guarda en el AWR.",false,"Esas las recolecta un job de mantenimiento y se guardan en el diccionario de datos.");
+M(5,"5.3","¿Cada cuánto toma MMNL una muestra de sesiones activas (ASH)?","Cada segundo",["Cada minuto","Cada hora","En cada commit"],"Se consulta en v$active_session_history.");
+M(5,"5.3","¿Qué resuelve RECO?","Transacciones distribuidas en duda",["Sesiones bloqueadas","Archivos de redo dañados","Hangs y deadlocks"],"Las pendientes se ven en dba_2pc_pending.");
+M(5,"5.4","En v$process, ¿qué columna es nula en los server processes dedicados?","`pname`",["`spid`","`addr`","`program`"],"background is null regresa los foreground processes.");
+M(5,"5.4","En v$bgprocess, `paddr = '00'` significa que el proceso...","Existe en el catálogo pero no se está ejecutando",["Está en ejecución como proceso del S.O.", "Es un hilo dentro de un proceso BGnn", "Es un server process dedicado"],"Por ejemplo ARC0 en noarchivelog.");
+
+// Tema 6. Estructuras lógicas de almacenamiento
+M(6,"6.1","¿Cuál es la unidad mínima de E/S en Oracle?","El bloque de datos",["La extensión","El segmento","El registro"],"Aunque necesites un registro, se lee o escribe el bloque completo.");
+M(6,"6.1","Una extensión puede estar en...","Un solo data file",["Varios data files","Varios tablespaces","Ningún data file"],"Es un conjunto de bloques contiguos.");
+M(6,"6.1","Un segmento puede tener extensiones en...","Varios data files, pero de un solo tablespace",["Varios tablespaces, si comparten data file", "Un solo data file, siempre el primero", "Varias PDBs, si es un segmento común"],"El tablespace es el contenedor lógico del segmento.");
+M(6,"6.2","¿Cuál es el tamaño de bloque por default?","8 KB",["2 KB","16 KB","32 KB"],"Permitido de 2 KB a 32 KB.");
+V(6,"6.2","db_block_size puede cambiarse después de crear la base de datos.",false,"Se fija al crear la base; un tablespace puede usar otro tamaño con blocksize.");
+M(6,"6.2","Para crear un tablespace con blocksize 16K en una base de 8K se requiere...","Configurar db_16k_cache_size",["Reiniciar en modo restringido","Un tablespace bigfile","Cambiar db_block_size"],"La instancia debe tener un buffer pool de ese tamaño.");
+M(6,"6.2","¿Qué es el ITL del block header?","Interested transaction list: una entrada por transacción que modifica registros del bloque",["El directorio con los metadatos de las tablas del bloque", "La lista de bloques con espacio libre del segmento", "El arreglo de punteros a cada registro del bloque"],"Cada entrada ocupa unos 23 bytes.");
+M(6,"6.2","¿Cómo se llenan los registros (row data) dentro de un bloque?","Del final del bloque hacia el inicio",["Del inicio hacia el final","En orden de llave primaria","En orden aleatorio"],"El espacio libre queda entre los encabezados y los datos.");
+M(6,"6.2","¿Cuántas columnas puede guardar como máximo un row piece?","255",["1000","64","Sin límite"],"Con más columnas, el registro se divide.");
+V(6,"6.2","Las columnas null al final de un registro no ocupan espacio.",true,"Las columnas de longitud variable ocupan solo su valor.");
+M(6,"6.2","En el ROWID extendido, ¿qué identifican los primeros 6 caracteres (OOOOOO)?","El data object number del segmento",["El número de bloque dentro del data file", "El data file relativo al tablespace", "El número de registro dentro del bloque"],"Luego FFF (data file relativo), BBBBBB (bloque) y RRR (registro).");
+V(6,"6.2","El ROWID se guarda como una columna dentro de cada registro.",false,"Se obtiene de su ubicación; los índices sí guardan el ROWID.");
+M(6,"6.2","¿Qué operación puede CAMBIAR el ROWID de un registro?","`alter table ... move`",["`select`","`commit`","`analyze table`"],"También shrink space y actualizar la llave de partición.");
+M(6,"6.2","Tras un truncate, ¿qué identificador cambia?","`data_object_id`",["`object_id`","El nombre de la tabla","El dueño"],"El data object number cambia cuando el segmento se recrea.");
+M(6,"6.3","¿Qué reserva pctfree?","Espacio del bloque para que los registros crezcan con update",["Espacio del bloque para nuevos inserts de otras sesiones", "Espacio para que crezca el ITL de cada transacción", "Espacio del bloque para guardar el undo del cambio"],"Su objetivo principal es evitar la migración de registros.");
+M(6,"6.3","¿Cuál es el default de pctfree?","10",["0","20","40"],"Para tablas de solo inserción conviene 0 o un valor bajo.");
+V(6,"6.3","pctused se ignora en tablespaces con ASSM.",true,"pctused solo aplica en administración manual (MSSM).");
+M(6,"6.3","¿Cuándo compacta Oracle un bloque (coalesce)?","Cuando hay espacio libre total suficiente pero no es contiguo",["En cada commit que libera espacio en el bloque", "En cada checkpoint, antes de que DBW lo escriba", "Solo al ejecutar alter table move sobre la tabla"],"Se deben cumplir ambas condiciones.");
+M(6,"6.3","Un update agranda un registro y ya no cabe en su bloque. El registro completo se mueve a otro bloque. Esto es...","Migración",["Encadenamiento","Coalesce","Shrink"],"El bloque original conserva un puntero (forwarding address).");
+M(6,"6.3","En un registro MIGRADO, ¿qué pasa con su ROWID?","No cambia: los índices siguen apuntando al bloque original",["Cambia al nuevo bloque y se actualizan los índices", "Se pierde y el registro solo se encuentra por full scan", "Se duplica: un ROWID por cada bloque que ocupa"],"Acceder por ROWID requiere leer dos bloques.");
+M(6,"6.3","¿Cuál causa ENCADENAMIENTO (row chaining)?","Un registro demasiado grande para un bloque",["Un update que reduce el registro","Un delete","Un commit"],"También ocurre con más de 255 columnas.");
+M(6,"6.3","¿Qué estadística cuenta accesos que leyeron un row piece adicional?","table fetch continued row",["redo size","sorts (disk)","parse count (hard)"],"Se ve en v$sysstat y v$mystat.");
+M(6,"6.3","En un índice B-tree, ¿qué bloques contienen el valor indexado y el ROWID?","Leaf blocks",["Branch blocks","Root block","Segment header"],"Las hojas están ordenadas y doblemente ligadas.");
+M(6,"6.3","Un branch block con n hijos tiene...","n − 1 entradas",["n entradas","n + 1 entradas","2n entradas"],"El hijo más a la izquierda no tiene entrada; su dirección está en el encabezado.");
+M(6,"6.3","En un índice no particionado, ¿cuántos bytes ocupa el ROWID de cada entrada?","6",["10","18","4"],"No se guarda el data object number: todas apuntan al mismo segmento.");
+M(6,"6.3","En una búsqueda exacta por índice, ¿cuántos bloques de índice se leen?","Tantos como la altura del índice",["Todos los leaf blocks del índice", "Solo el root block", "Uno por cada registro de la tabla"],"Más un bloque de la tabla.");
+M(6,"6.3","¿Qué hace `alter index ... coalesce`?","Combina hojas adyacentes y libera bloques para el propio índice",["Reduce el segmento y devuelve el espacio al tablespace", "Construye un segmento nuevo y elimina el anterior", "Elimina las entradas de los registros borrados y el índice"],"shrink space sí libera el espacio del segmento; rebuild crea uno nuevo.");
+M(6,"6.4","¿Cuál es la unidad de asignación de espacio a un segmento?","La extensión",["El bloque","El data file","El tablespace"],"Un segmento no recibe bloques sueltos.");
+M(6,"6.4","¿Qué bloque guarda el mapa de extensiones y la posición de la HWM?","Segment header block",["Root block","Block header de cada bloque","Control file"],"Es el primer bloque de la extensión inicial.");
+M(6,"6.4","Con autoallocate, ¿de qué tamaño son las primeras extensiones?","64 KB",["1 MB","8 KB","8 MB"],"Al crecer: 1 MB, 8 MB y 64 MB.");
+M(6,"6.4","¿Qué operación NO libera ninguna extensión?","`delete`",["`truncate table`","`alter table ... move`","`drop table ... purge`"],"Los bloques quedan vacíos pero siguen asignados.");
+M(6,"6.4","`truncate table` (con drop storage, default) libera...","Todas las extensiones excepto la inicial",["Ninguna","Todas incluida la inicial","Solo las de arriba de la HWM"],"Con reuse storage se conservan.");
+M(6,"6.4","Con recyclebin = on, un `drop table` sin purge...","Renombra el segmento a BIN$... y no libera espacio",["Libera todas las extensiones y conserva la definición", "Elimina el segmento y también su data file", "Mueve la tabla al tablespace sysaux"],"El espacio se reutiliza al hacer purge o cuando el tablespace lo necesita.");
+M(6,"6.5","Una tabla con una columna LOB, ¿cuántos segmentos genera?","3",["1","2","4"],"Tabla, segmento LOB e índice LOB: cada columna LOB agrega dos segmentos.");
+M(6,"6.5","¿Cuál de estos objetos NO tiene segmento propio?","Una vista",["Una tabla","Un índice","Una partición"],"Tampoco los sinónimos ni el código PL/SQL.");
+M(6,"6.5","Con deferred_segment_creation = true, ¿cuándo se crea el segmento de una tabla?","Con el primer registro",["Con create table","Con el primer select","Al reiniciar"],"Se sobrescribe con segment creation immediate.");
+M(6,"6.5","Al crear un índice, ¿dónde se escribe primero su segmento temporal?","En el tablespace destino del índice",["En el tablespace temporal","En system","En undo"],"Al terminar se convierte en permanente.");
+V(6,"6.5","Un bloque undo puede contener datos de varias transacciones.",false,"Varias transacciones pueden compartir segmento, pero cada bloque undo es de una sola.");
+M(6,"6.5","¿Cómo se forma el XID?","Segmento undo . slot de la tabla de transacciones . secuencia",["Data file . bloque . registro del primer cambio", "SID . serial# . número de instancia", "SCN de inicio . fecha . usuario"],"Se obtiene con dbms_transaction.local_transaction_id.");
+M(6,"6.5","En una CDB con local undo (el modo del curso)...","Cada PDB tiene su propio undo",["Todas las PDBs comparten un undo","Solo cdb$root tiene undo","No hay undo"],"Es el default.");
+M(6,"6.6","Si el tablespace system no está disponible...","La base no puede abrirse",["La base opera con funcionalidad reducida","Solo falla el AWR","No pasa nada"],"Contiene el diccionario y el PL/SQL compilado.");
+M(6,"6.6","¿Qué contiene sysaux?","Datos de componentes auxiliares, como el AWR",["El diccionario de datos y el PL/SQL compilado", "Los segmentos undo de la PDB", "Los segmentos temporales de los ordenamientos"],"v$sysaux_occupants muestra el espacio por componente.");
+V(6,"6.6","Los cambios en tablespaces temporales no generan redo.",true,"No se respaldan ni recuperan; si se pierden, se recrean.");
+M(6,"6.6","¿Cuántos data files tiene un tablespace bigfile?","Exactamente 1",["Hasta 1022","Hasta 100","Ilimitados"],"Un smallfile puede tener hasta 1022.");
+M(6,"6.6","Tamaño máximo de un data file smallfile con bloques de 8 KB:","32 GB",["32 TB","128 GB","4 GB"],"Bigfile con 8 KB: 32 TB.");
+V(6,"6.6","En un tablespace read only se puede ejecutar drop table sobre sus tablas.",true,"Solo se modifica el diccionario, que está en system.");
+M(6,"6.6","¿Cuál NO puede ponerse en read only?","El undo tablespace en uso",["Un tablespace de usuario","Uno con datos históricos","users"],"Tampoco system ni los temporales.");
+M(6,"6.6","¿Qué opción de offline requiere recuperación de TODOS los data files al volver a online?","immediate",["normal","temporary","read only"],"immediate no hace checkpoint y requiere archivelog.");
+M(6,"6.6","¿Cuál puede ponerse offline?","sysaux",["system","El undo en uso","Un tablespace temporal"],"sysaux sí, perdiendo funcionalidad.");
+M(6,"6.7","¿Qué hace `reuse` en la cláusula datafile?","Si el archivo existe, lo reutiliza y sobrescribe su contenido",["Reutiliza el espacio libre de otro tablespace","Comprime el archivo","Activa autoextend"],"size, reuse y autoextend son propiedades del data file.");
+M(6,"6.7","¿Qué error da un maxsize mayor al máximo de un data file smallfile?","ORA-03206",["ORA-01653","ORA-01950","ORA-01536"],"No es error de espacio: la instrucción no se ejecuta.");
+V(6,"6.7","Un tablespace nologging evita el redo de los insert convencionales.",false,"nologging solo reduce el redo de operaciones direct-path; el DML convencional siempre genera redo.");
+M(6,"6.7","¿Cuál es una operación direct-path afectada por nologging?","`insert /*+ append */`",["`update`","`delete`","`merge` convencional"],"También create table as select, create index y alter table move.");
+M(6,"6.7","¿Qué obliga a generar redo aunque el objeto sea nologging?","`force logging`",["`logging`","`archivelog`","`blocksize`"],"Indispensable con una base standby.");
+M(6,"6.7","¿Qué compresión comprime también en DML convencional?","`row store compress advanced`",["`row store compress basic`","`column store compress for query`","Ninguna"],"Basic solo comprime en operaciones direct-path.");
+M(6,"6.7","Un usuario sin cuota en el tablespace intenta crear una tabla con datos. ¿Qué error obtiene?","ORA-01950",["ORA-01536","ORA-01653","ORA-00942"],"ORA-01536 es cuota excedida.");
+M(6,"6.7","En dba_ts_quotas, ¿qué significa max_bytes = -1?","Cuota ilimitada",["Sin cuota","Cuota agotada","Error en la vista"],"quota 0 impide ocupar más espacio pero conserva los segmentos.");
+M(6,"6.7","¿Por qué NO otorgar unlimited tablespace?","Da cuota ilimitada en todos los tablespaces, incluido system",["Desactiva la auditoría de los objetos del usuario", "Cambia el tablespace undo que usa el usuario", "Impide crear índices en otros tablespaces"],"Mejor asignar cuotas explícitas.");
+V(6,"6.7","La cuota consumida es la del dueño del segmento, aunque lo cree un administrador.",true,"La cuota se aplica al esquema dueño del segmento.");
+M(6,"6.8","En administración local de extensiones, ¿dónde está el bitmap de extensiones?","En el encabezado de cada data file",["En el diccionario de datos","Dentro de cada segmento","En el control file"],"Los bloques de bitmap de ASSM, en cambio, están dentro de cada segmento.");
+M(6,"6.8","¿Qué usa ASSM para saber qué bloques tienen espacio?","Bloques de bitmap dentro del segmento",["Free lists ligadas en el segment header", "El ITL de cada bloque del segmento", "El bitmap de extensiones del control file"],"Clasifican cada bloque por rangos de espacio libre de 25%.");
+V(6,"6.8","La administración de extensiones (local o diccionario) se puede cambiar después de crear el tablespace.",false,"Ni extensiones ni ASSM/MSSM pueden cambiarse: se crea un tablespace nuevo y se mueven los segmentos.");
+M(6,"6.8","¿Qué error indica que no se puede extender una TABLA en un tablespace?","ORA-01653",["ORA-01654","ORA-01652","ORA-01536"],"01654 es para índices y 01652 para segmentos temporales.");
+M(6,"6.9","¿Qué le pasa a la HWM con un `delete` de todos los registros?","No se mueve",["Regresa al inicio","Avanza","Desaparece"],"Por eso una lectura completa tarda casi lo mismo.");
+M(6,"6.9","Por debajo de la low HWM, los bloques...","Están todos formateados",["No están formateados","Están todos vacíos","Pertenecen a otro segmento"],"Entre low HWM y HWM hay bloques formateados y sin formatear.");
+M(6,"6.9","¿Qué instrucción requiere `enable row movement` antes de usarse?","`alter table ... shrink space`",["`truncate table`","`alter table ... move`","`delete`"],"shrink cambia los ROWID; solo funciona en ASSM.");
+M(6,"6.9","Después de `alter table ... move`, ¿qué hay que hacer con los índices?","Reconstruirlos con alter index ... rebuild",["Nada, se actualizan solos con los nuevos ROWID", "Borrarlos, porque move los convierte en inválidos para siempre", "Moverlos a sysaux para que dejen de estar UNUSABLE"],"move crea un segmento nuevo e invalida los índices.");
+M(6,"6.9","¿Qué hace `shrink space compact`?","Compacta los registros sin mover la HWM",["Baja la HWM sin mover los registros", "Reduce el tamaño del data file", "Libera todas las extensiones de la tabla"],"El ajuste final se hace después con shrink space.");
+M(6,"6.9","¿Qué procedimiento de 23ai reduce el tamaño de los data files de un tablespace?","`dbms_space.shrink_tablespace`",["`dbms_space.unused_space`","`dbms_space_admin.drop_empty_segments`","`dbms_rowid.rowid_block_number`"],"Con ts_mode_analyze solo estima.");
+M(6,"6.9","Con dbms_space.unused_space, ¿cómo se calcula la HWM?","total_blocks − unused_blocks",["total_blocks + unused_blocks","unused_blocks / total_blocks","Solo total_blocks"],"unused_blocks son los bloques por encima de la HWM.");
+
+BANK.forEach((q, i) => q.id = i);
+const TEMAS = { 4: "Memoria", 5: "Procesos", 6: "Almacenamiento lógico" };
+
+/* ===================== Utilidades ===================== */
+const $app = document.getElementById("app");
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const rich = s => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const SHAPES = [
+  '<svg class="shape" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 30 28H2Z" fill="#fff"/></svg>',
+  '<svg class="shape" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 30 16 16 30 2 16Z" fill="#fff"/></svg>',
+  '<svg class="shape" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="#fff"/></svg>',
+  '<svg class="shape" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="4" width="24" height="24" rx="2" fill="#fff"/></svg>'
+];
+const SHAPE_NAMES = ["triángulo", "rombo", "círculo", "cuadrado"];
+function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } }
+function points(ms, dur, streak) {           // Puntaje estilo Kahoot: 500-1000 por rapidez + bono de racha
+  const f = Math.max(0, Math.min(1, ms / (dur * 1000)));
+  return Math.round(1000 - 500 * f) + Math.min(streak, 5) * 100;
+}
+function makePerm(q) { return q.tf ? [0, 1] : shuffle([0, 1, 2, 3]); }
+function pickQuestions(cfg) {
+  let pool = BANK.filter(q => cfg.temas.includes(q.t));
+  if (cfg.only) pool = BANK.filter(q => cfg.only.includes(q.id));
+  pool = shuffle(pool);
+  return cfg.n === "all" ? pool : pool.slice(0, cfg.n);
+}
+const nickClean = s => s.replace(/[^\p{L}\p{N} _.\-]/gu, "").trim().slice(0, 16);
+
+/* ===================== Room (multijugador) ===================== */
+let ROOM = null, roomState = "loading";      // loading | ready | off
+(async () => {
+  try {
+    if (!window.claude || typeof window.claude.use !== "function") throw 0;
+    ROOM = await window.claude.use("room");
+    if (ROOM && !window.BDA_STANDALONE) ROOM = lobbyWrap(ROOM);
+    roomState = ROOM ? "ready" : "off";
+  } catch (e) { roomState = "off"; }
+  if (VIEW === "home") renderHome();
+})();
+setTimeout(() => { if (roomState === "loading") { roomState = "off"; if (VIEW === "home") renderHome(); } }, 12000);
+
+/* En claude.ai todos comparten la sala general (lobby) y cada partida se separa por PIN en la presencia. */
+function lobbyWrap(room) {
+  return {
+    join: async name => {
+      let alive = true; const offs = [];
+      await room.presence({ room: name });
+      return {
+        presence: patch => room.presence(Object.assign({}, patch, { room: name })),
+        onPeers: (h, e) => { const off = room.onPeers(ch => { if (alive) h({ peers: ch.peers.filter(p => p.sameTab || (p.presence && p.presence.room === name)) }); }, e); offs.push(off); return off; },
+        leave: async () => { alive = false; offs.forEach(f => f()); return room.presence({ room: null, role: null, g: null, a: null, nick: null }); }
+      };
+    }
+  };
+}
+function netWarn(msg) {
+  let el = document.getElementById("netwarn");
+  if (!el) { el = document.createElement("p"); el.id = "netwarn"; el.className = "notice err"; document.body.insertBefore(el, $app); }
+  el.textContent = msg;
+}
+
+/* ===================== Configuración ===================== */
+const cfg = Object.assign({ temas: [4, 5, 6], n: 20, dur: 20 }, store("bda.cfg") || {});
+let VIEW = "home";
+function cfgBlock() {
+  const tChips = [4, 5, 6].map(t => `<button class="chip" data-tema="${t}" aria-pressed="${cfg.temas.includes(t)}">Tema ${t} · ${TEMAS[t]}</button>`).join("");
+  const nChips = [10, 20, 30, 50, "all"].map(n => `<button class="chip" data-n="${n}" aria-pressed="${cfg.n === n}">${n === "all" ? "Todas" : n}</button>`).join("");
+  const dChips = [10, 20, 30].map(d => `<button class="chip" data-dur="${d}" aria-pressed="${cfg.dur === d}">${d} s</button>`).join("");
+  const avail = BANK.filter(q => cfg.temas.includes(q.t)).length;
+  return `<div class="card">
+    <div class="row"><label class="lbl">Temas</label></div><div class="row">${tChips}</div>
+    <div class="row"><label class="lbl">Preguntas</label><span class="muted">(${avail} disponibles)</span></div><div class="row">${nChips}</div>
+    <div class="row"><label class="lbl">Tiempo por pregunta</label></div><div class="row">${dChips}</div>
+  </div>`;
+}
+function bindCfg(rerender) {
+  $app.querySelectorAll("[data-tema]").forEach(b => b.onclick = () => {
+    const t = +b.dataset.tema;
+    if (cfg.temas.includes(t)) { if (cfg.temas.length > 1) cfg.temas = cfg.temas.filter(x => x !== t); }
+    else cfg.temas = [...cfg.temas, t].sort();
+    store("bda.cfg", cfg); rerender();
+  });
+  $app.querySelectorAll("[data-n]").forEach(b => b.onclick = () => { cfg.n = b.dataset.n === "all" ? "all" : +b.dataset.n; store("bda.cfg", cfg); rerender(); });
+  $app.querySelectorAll("[data-dur]").forEach(b => b.onclick = () => { cfg.dur = +b.dataset.dur; store("bda.cfg", cfg); rerender(); });
+}
+
+/* ===================== Inicio ===================== */
+function renderHome() {
+  VIEW = "home"; stopTimers();
+  const best = store("bda.best");
+  const multi = roomState === "ready"
+    ? `<div class="row"><button class="big primary" id="host">Crear sala</button><button class="big" id="join">Unirme con PIN</button></div>
+       <p class="muted">Quien crea la sala proyecta las preguntas y controla el ritmo. Los demás entran con el PIN desde su celular o computadora.</p>`
+    : roomState === "loading"
+      ? `<p class="muted">Conectando el modo multijugador…</p>`
+      : window.BDA_STANDALONE
+        ? `<p class="notice">No se pudo cargar la conexión para jugar en grupo. Revisa tu internet y recarga la página. El modo individual funciona igual.</p>`
+        : `<p class="notice">El multijugador no está disponible en esta vista. Abre la página en claude.ai con tu cuenta (tus compañeros necesitan que la compartas con ellos). El modo individual funciona igual.</p>`;
+  $app.innerHTML = `
+    <header class="brand"><h1>Reto BDA</h1><span class="tag">Temas 4 · 5 · 6 — ${BANK.length} preguntas</span></header>
+    <p class="muted">Repaso tipo concurso de Bases de Datos Avanzadas: memoria, procesos y almacenamiento lógico en Oracle. Más rápido = más puntos; las rachas dan bono.</p>
+    ${cfgBlock()}
+    <div class="grid2">
+      <section class="card"><h3>Jugar solo</h3>
+        <p class="muted">Practica a tu ritmo y al final revisa las que fallaste.</p>
+        <div class="row"><button class="big primary" id="solo">Empezar</button></div>
+        ${best ? `<p class="muted">Tu mejor puntaje: <b>${best.score.toLocaleString("es-MX")}</b> (${best.ok}/${best.n} aciertos)</p>` : ""}
+      </section>
+      <section class="card"><h3>Multijugador</h3>${multi}</section>
+    </div>
+    <footer>Preguntas elaboradas a partir de las notas «Material de apoyo» del Prof. Jorge A. Rodríguez C. (FI UNAM). Teclas 1 a 4 para responder.</footer>`;
+  bindCfg(renderHome);
+  document.getElementById("solo").onclick = () => startSolo();
+  const h = document.getElementById("host"); if (h) h.onclick = startHost;
+  const j = document.getElementById("join"); if (j) j.onclick = renderJoin;
+}
+
+/* ===================== Pantallas compartidas ===================== */
+let timers = [];
+function stopTimers() { timers.forEach(t => { clearInterval(t); cancelAnimationFrame(t); }); timers = []; document.onkeydown = null; }
+function questionHTML(q, perm, opts) {
+  // opts: {interactive, reveal:{dist, chosen}, idx, total, score, streak, hostView}
+  const tiles = perm.map((oi, pos) => {
+    const color = q.tf ? (oi === 0 ? 1 : 0) : pos;          // V/F: Verdadero azul, Falso rojo
+    const cls = ["ans", "c" + color];
+    let extra = "";
+    if (opts.reveal) {
+      if (oi === q.c) cls.push("right"); else cls.push("dim");
+      if (opts.reveal.dist) extra = `<span class="count">${opts.reveal.dist[oi] || 0}</span>`;
+      else if (opts.reveal.chosen === oi) extra = `<span class="mark">${oi === q.c ? "✔" : "✘"}</span>`;
+    }
+    const shape = SHAPES[color];
+    return `<button class="${cls.join(" ")}" data-opt="${oi}" ${opts.interactive ? "" : "disabled"} aria-label="Opción ${pos + 1}, ${SHAPE_NAMES[color]}">${shape}<span>${rich(q.opts[oi])}</span>${extra}</button>`;
+  }).join("");
+  return `
+    <div class="topbar">
+      <span class="pill">${opts.idx + 1} / ${opts.total}</span>
+      <span class="pill">Tema ${q.t} · ${TEMAS[q.t]}</span>
+      ${opts.score != null ? `<span class="pill gold">${opts.score.toLocaleString("es-MX")} pts${opts.streak > 1 ? ` · racha ${opts.streak}` : ""}</span>` : ""}
+    </div>
+    <div class="qbox"><span class="sec">Sección ${esc(q.s)}${q.tf ? " · Verdadero o falso" : ""}</span><h2>${rich(q.q)}</h2></div>
+    ${opts.reveal ? "" : `<div class="timer"><span class="num" id="tnum"></span><div class="bar"><i id="tbar"></i></div>${opts.extraTimer || ""}</div>`}
+    <div class="answers">${tiles}</div>`;
+}
+function runTimer(deadline, dur, onEnd) {
+  const num = document.getElementById("tnum"), bar = document.getElementById("tbar");
+  let done = false;
+  const tick = () => {
+    const left = Math.max(0, deadline - Date.now());
+    if (num) num.textContent = Math.ceil(left / 1000);
+    if (bar) bar.style.transform = `scaleX(${left / (dur * 1000)})`;
+    if (left <= 0 && !done) { done = true; onEnd && onEnd(); return; }
+    if (!done) timers.push(requestAnimationFrame(tick));
+  };
+  tick();
+}
+function bindAnswers(cb) {
+  $app.querySelectorAll(".ans").forEach(b => b.onclick = () => cb(+b.dataset.opt));
+  document.onkeydown = e => {
+    const k = +e.key; const btns = $app.querySelectorAll(".ans");
+    if (k >= 1 && k <= btns.length && !btns[k - 1].disabled) btns[k - 1].click();
+  };
+}
+function leaderboardHTML(rows, mePeer, limit) {
+  const top = rows.slice(0, limit);
+  const meIdx = rows.findIndex(r => r[0] === mePeer);
+  let list = top.map((r, i) => `<li class="${r[0] === mePeer ? "me" : ""}"><span class="pos">${i + 1}</span><span>${esc(r[1])}</span><span>${r[2].toLocaleString("es-MX")}</span></li>`).join("");
+  if (meIdx >= limit) list += `<li class="me"><span class="pos">${meIdx + 1}</span><span>${esc(rows[meIdx][1])} (tú)</span><span>${rows[meIdx][2].toLocaleString("es-MX")}</span></li>`;
+  return `<div class="lead"><ol>${list || '<li><span></span><span class="muted">Sin jugadores</span><span></span></li>'}</ol></div>`;
+}
+function reviewHTML(items) {
+  if (!items.length) return `<p class="muted">No fallaste ninguna. Excelente.</p>`;
+  return `<div class="review">${items.map(it => {
+    const q = BANK[it.qid];
+    return `<div class="item"><span class="muted">Tema ${q.t} · ${esc(q.s)}</span><b>${rich(q.q)}</b>
+      <span class="yours">Tu respuesta: ${it.choice == null ? "sin responder" : rich(q.opts[it.choice])}</span>
+      <span class="good">Correcta: ${rich(q.opts[q.c])}</span><span>${rich(q.e)}</span></div>`;
+  }).join("")}</div>`;
+}
+function temaBars(hist) {
+  return `<div class="tbar">${[4, 5, 6].filter(t => hist[t]).map(t => {
+    const p = Math.round(100 * hist[t].ok / hist[t].n);
+    return `<div><span>Tema ${t}</span><span class="track"><i style="width:${p}%"></i></span><span>${p}%</span></div>`;
+  }).join("")}</div>`;
+}
+
+/* ===================== Modo individual ===================== */
+let S = null;
+function startSolo(only) {
+  const qs = pickQuestions(Object.assign({}, cfg, only ? { only, n: "all" } : {}));
+  S = { qs, i: 0, score: 0, streak: 0, log: [], dur: cfg.dur };
+  soloQuestion();
+}
+function soloQuestion() {
+  VIEW = "solo"; stopTimers();
+  const q = S.qs[S.i], perm = makePerm(q), t0 = Date.now();
+  $app.innerHTML = questionHTML(q, perm, { interactive: true, idx: S.i, total: S.qs.length, score: S.score, streak: S.streak })
+    + `<div class="row between"><button class="ghost" id="quit">Salir</button></div>`;
+  document.getElementById("quit").onclick = renderHome;
+  let answered = false;
+  const finish = choice => {
+    if (answered) return; answered = true; stopTimers();
+    const ms = Date.now() - t0, ok = choice === q.c;
+    const gain = ok ? points(ms, S.dur, S.streak) : 0;
+    S.streak = ok ? S.streak + 1 : 0; S.score += gain;
+    S.log.push({ qid: q.id, choice, ok });
+    soloReveal(q, perm, choice, ok, gain);
+  };
+  bindAnswers(finish);
+  runTimer(t0 + S.dur * 1000, S.dur, () => finish(null));
+}
+function soloReveal(q, perm, choice, ok, gain) {
+  const last = S.i === S.qs.length - 1;
+  $app.innerHTML = `
+    <div class="verdict ${ok ? "ok" : "bad"}"><h2>${ok ? "¡Correcto!" : choice == null ? "Se acabó el tiempo" : "Incorrecto"}</h2>
+      <span class="pts">+${gain}</span>${ok && S.streak > 1 ? `<span>Racha de ${S.streak}</span>` : ""}</div>
+    ${questionHTML(q, perm, { reveal: { chosen: choice }, idx: S.i, total: S.qs.length, score: S.score, streak: S.streak })}
+    <div class="expl">${rich(q.e)}</div>
+    <div class="row between"><button class="ghost" id="quit">Salir</button><button class="big primary" id="next">${last ? "Ver resultados" : "Siguiente"}</button></div>`;
+  document.getElementById("quit").onclick = renderHome;
+  const nx = document.getElementById("next"); nx.focus();
+  nx.onclick = () => { if (last) soloEnd(); else { S.i++; soloQuestion(); } };
+  document.onkeydown = e => { if (e.key === "Enter") nx.click(); };
+}
+function soloEnd() {
+  VIEW = "soloEnd"; stopTimers();
+  const okN = S.log.filter(l => l.ok).length, hist = {};
+  S.log.forEach(l => { const t = BANK[l.qid].t; hist[t] = hist[t] || { n: 0, ok: 0 }; hist[t].n++; if (l.ok) hist[t].ok++; });
+  const best = store("bda.best");
+  const isBest = !best || S.score > best.score;
+  if (isBest) store("bda.best", { score: S.score, ok: okN, n: S.log.length });
+  const wrong = S.log.filter(l => !l.ok);
+  $app.innerHTML = `
+    <h1>Resultados</h1>
+    <div class="stat3"><div><b>${S.score.toLocaleString("es-MX")}</b>puntos${isBest ? " · récord" : ""}</div><div><b>${okN}/${S.log.length}</b>aciertos</div><div><b>${Math.round(100 * okN / S.log.length)}%</b>efectividad</div></div>
+    <section class="card"><h3>Por tema</h3>${temaBars(hist)}</section>
+    <div class="row"><button class="big primary" id="again">Jugar otra vez</button>${wrong.length ? `<button class="big" id="retry">Repetir las ${wrong.length} falladas</button>` : ""}<button class="ghost" id="home">Inicio</button></div>
+    <section class="card"><h3>Preguntas falladas</h3>${reviewHTML(wrong)}</section>`;
+  document.getElementById("again").onclick = () => startSolo();
+  document.getElementById("home").onclick = renderHome;
+  const r = document.getElementById("retry"); if (r) r.onclick = () => startSolo(wrong.map(w => w.qid));
+}
+
+/* ===================== Multijugador: anfitrión ===================== */
+let H = null;   // estado del anfitrión
+async function startHost() {
+  VIEW = "host"; stopTimers();
+  $app.innerHTML = `<div class="wait"><div class="spinner"></div><p>Creando la sala…</p></div>`;
+  let pin, r;
+  for (let k = 0; k < 4 && !r; k++) {
+    pin = String(100000 + Math.floor(Math.random() * 900000));
+    try { r = await ROOM.join("bda-" + pin, { hub: true }); }
+    catch (e) { if (!(e && e.code === "taken")) return roomError("No se pudo crear la sala (" + (e && e.code || "error") + "). Revisa tu conexión e intenta de nuevo."); }
+  }
+  if (!r) return roomError("No se pudo reservar un PIN libre. Intenta de nuevo.");
+  H = { pin, r, qs: [], players: {}, online: new Set(), answers: {}, g: { ph: "lobby", i: 0, n: 0 }, qStart: 0, dur: cfg.dur };
+  r.onPeers(onHostPeers, e => roomError("Se perdió la conexión con la sala (" + e.code + ")."));
+  pushHost();
+  hostLobby();
+}
+function roomError(msg) {
+  VIEW = "err"; stopTimers();
+  $app.innerHTML = `<div class="card"><h2>Algo salió mal</h2><p class="err">${esc(msg)}</p><div class="row"><button class="primary" id="home">Volver al inicio</button></div></div>`;
+  document.getElementById("home").onclick = () => { leaveRoom(); renderHome(); };
+}
+function leaveRoom() {
+  try { if (H && H.r) H.r.leave(); } catch (e) { }
+  try { if (P && P.r) P.r.leave(); } catch (e) { }
+  H = null; P = null;
+}
+function sbRows() {        // [peer, nick, score, streak, lastOk, lastGain]
+  return Object.entries(H.players).map(([peer, p]) => [peer, p.nick, p.score, p.streak, p.last, p.gain]).sort((a, b) => b[2] - a[2]);
+}
+function pushHost() {
+  const g = Object.assign({}, H.g);
+  if (g.ph === "q") g.left = Math.max(0, H.qStart + H.dur * 1000 - Date.now());
+  g.sb = sbRows().slice(0, 45);
+  g.np = Object.keys(H.players).length;
+  H.r.presence({ role: "host", g }).then(() => { const w = document.getElementById("netwarn"); if (w) w.remove(); })
+    .catch(e => netWarn("No se pudo enviar el estado de la sala a los jugadores (" + (e && e.code || "error") + ")."));
+}
+function onHostPeers(ch) {
+  if (!H) return;
+  H.online = new Set(ch.peers.filter(p => p.presence && p.presence.role === "player").map(p => p.peer));
+  for (const p of ch.peers) {
+    const pr = p.presence || {};
+    if (pr.role !== "player" || typeof pr.nick !== "string") continue;
+    const nick = nickClean(pr.nick) || "Jugador";
+    if (!H.players[p.peer]) {
+      // ¿Regresa alguien con el mismo apodo que se desconectó? Conserva su puntaje.
+      const prev = Object.entries(H.players).find(([pp, d]) => d.nick.toLowerCase() === nick.toLowerCase() && !H.online.has(pp));
+      if (prev) { H.players[p.peer] = prev[1]; delete H.players[prev[0]]; }
+      else H.players[p.peer] = { nick, score: 0, streak: 0, last: -1, gain: 0, log: [] };
+    }
+    const a = pr.a;
+    if (H.g.ph === "q" && Array.isArray(a) && a[0] === H.g.i && !(p.peer in H.answers) && Number.isInteger(a[1])) {
+      const ms = Date.now() - H.qStart;
+      if (ms <= H.dur * 1000 + 600) H.answers[p.peer] = { c: a[1], ms };
+    }
+  }
+  if (H.g.ph === "q") {
+    H.g.cnt = Object.keys(H.answers).length;
+    const online = [...H.online].filter(pe => H.players[pe]);
+    if (online.length && online.every(pe => pe in H.answers)) hostReveal();
+  }
+  pushHost();
+  if (VIEW === "host") { if (H.g.ph === "lobby") hostLobby(); else if (H.g.ph === "q") updateHostCount(); }
+}
+function hostLobby() {
+  VIEW = "host";
+  const names = Object.entries(H.players).map(([peer, p]) => `<span class="${H.online.has(peer) ? "" : "off"}">${esc(p.nick)}</span>`).join("");
+  const n = Object.keys(H.players).length;
+  if (!$app.querySelector("#lobby")) {
+    $app.innerHTML = `<div id="lobby" style="display:contents">
+      <div class="card" style="text-align:center;align-items:center"><span class="lbl">PIN de la sala</span><div class="pinbig">${H.pin}</div>
+        <p class="muted">Tus compañeros abren este mismo enlace, eligen <b>Unirme con PIN</b> y escriben este número.</p></div>
+      <div class="card"><div class="row between"><h3 id="pcount"></h3></div><div class="players" id="plist"></div></div>
+      ${cfgBlock()}
+      <div class="row between"><button class="ghost" id="close">Cerrar sala</button><button class="big primary" id="start">Empezar juego</button></div></div>`;
+    bindCfg(() => { $app.innerHTML = ""; hostLobby(); });
+    document.getElementById("close").onclick = () => { leaveRoom(); renderHome(); };
+    document.getElementById("start").onclick = hostStartGame;
+  }
+  document.getElementById("pcount").textContent = n === 1 ? "1 jugador conectado" : `${n} jugadores conectados`;
+  document.getElementById("plist").innerHTML = names || '<span class="off">Esperando jugadores…</span>';
+  document.getElementById("start").disabled = n === 0;
+}
+function hostStartGame() {
+  H.dur = cfg.dur; H.qs = pickQuestions(cfg);
+  Object.values(H.players).forEach(p => { p.score = 0; p.streak = 0; p.last = -1; p.gain = 0; });
+  H.g = { ph: "q", i: -1, n: H.qs.length };
+  hostNextQuestion();
+}
+function hostNextQuestion() {
+  stopTimers();
+  const i = H.g.i + 1, q = H.qs[i];
+  H.answers = {}; H.qStart = Date.now();
+  H.g = { ph: "q", i, n: H.qs.length, qid: q.id, perm: makePerm(q), dur: H.dur, cnt: 0 };
+  pushHost();
+  VIEW = "host";
+  $app.innerHTML = questionHTML(q, H.g.perm, { interactive: false, idx: i, total: H.qs.length, extraTimer: `<span class="pill" id="acount"></span>` })
+    + `<div class="row between"><button class="ghost" id="end">Terminar juego</button><button id="skip">Cerrar respuestas</button></div>`;
+  document.getElementById("end").onclick = hostEnd;
+  document.getElementById("skip").onclick = hostReveal;
+  updateHostCount();
+  runTimer(H.qStart + H.dur * 1000, H.dur, hostReveal);
+  timers.push(setInterval(pushHost, 3000));   // reenvía el tiempo restante para quien llegue tarde
+}
+function updateHostCount() {
+  const el = document.getElementById("acount");
+  if (el) el.textContent = `${Object.keys(H.answers).length} / ${H.online.size} respuestas`;
+}
+function hostReveal() {
+  if (!H || H.g.ph !== "q") return;
+  stopTimers();
+  const q = H.qs[H.g.i], dist = q.tf ? [0, 0] : [0, 0, 0, 0];
+  for (const [peer, p] of Object.entries(H.players)) {
+    const a = H.answers[peer];
+    if (a) dist[a.c] = (dist[a.c] || 0) + 1;
+    const ok = !!a && a.c === q.c;
+    p.gain = ok ? points(a.ms, H.dur, p.streak) : 0;
+    p.streak = ok ? p.streak + 1 : 0; p.score += p.gain; p.last = a ? (ok ? 1 : 0) : -1;
+  }
+  H.g = Object.assign({}, H.g, { ph: "rev", dist, cnt: Object.keys(H.answers).length });
+  pushHost();
+  const total = Object.keys(H.answers).length, okN = dist[q.c] || 0;
+  $app.innerHTML = `
+    ${questionHTML(q, H.g.perm, { reveal: { dist }, idx: H.g.i, total: H.qs.length })}
+    <div class="expl"><b>${okN} de ${total}</b> acertaron. ${rich(q.e)}</div>
+    <div class="row between"><button class="ghost" id="end">Terminar juego</button><button class="big primary" id="board">Ver ranking</button></div>`;
+  document.getElementById("end").onclick = hostEnd;
+  document.getElementById("board").onclick = hostBoard;
+}
+function hostBoard() {
+  const last = H.g.i >= H.qs.length - 1;
+  H.g = Object.assign({}, H.g, { ph: "board" });
+  pushHost();
+  $app.innerHTML = `<h2>Ranking · pregunta ${H.g.i + 1} de ${H.qs.length}</h2>${leaderboardHTML(sbRows(), null, 5)}
+    <div class="row between"><button class="ghost" id="end">Terminar juego</button><button class="big primary" id="next">${last ? "Ver podio" : "Siguiente pregunta"}</button></div>`;
+  document.getElementById("end").onclick = hostEnd;
+  document.getElementById("next").onclick = last ? hostEnd : hostNextQuestion;
+}
+function hostEnd() {
+  stopTimers();
+  H.g = { ph: "end", i: H.g.i, n: H.qs.length };
+  pushHost();
+  const rows = sbRows();
+  const pod = [1, 0, 2].map(k => rows[k] ? `<div class="p${k + 1}"><span>${k + 1}.º</span><b>${esc(rows[k][1])}</b><span>${rows[k][2].toLocaleString("es-MX")}</span></div>` : `<div class="p${k + 1}"></div>`).join("");
+  $app.innerHTML = `<h1>Podio</h1><div class="podium">${pod}</div>${leaderboardHTML(rows, null, 50)}
+    <div class="row between"><button class="ghost" id="close">Cerrar sala</button><button class="big primary" id="again">Otra partida con la misma sala</button></div>`;
+  document.getElementById("close").onclick = () => { leaveRoom(); renderHome(); };
+  document.getElementById("again").onclick = () => { H.g = { ph: "lobby", i: 0, n: 0 }; pushHost(); $app.innerHTML = ""; hostLobby(); };
+}
+
+/* ===================== Multijugador: jugador ===================== */
+let P = null;
+function renderJoin(errMsg) {
+  VIEW = "join"; stopTimers();
+  const nick = store("bda.nick") || "";
+  $app.innerHTML = `<h2>Unirme a una sala</h2>
+    <form class="card" id="jf">
+      <label class="lbl" for="pin">PIN</label><input type="text" id="pin" class="pin-input" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000">
+      <label class="lbl" for="nick">Tu apodo</label><input type="text" id="nick" maxlength="16" autocomplete="nickname" value="${esc(nick)}" placeholder="Como te verán en el ranking">
+      ${typeof errMsg === "string" ? `<p class="err">${esc(errMsg)}</p>` : ""}
+      <div class="row between"><button type="button" class="ghost" id="back">Volver</button><button class="big primary" type="submit">Entrar</button></div>
+    </form>`;
+  document.getElementById("back").onclick = renderHome;
+  document.getElementById("pin").focus();
+  document.getElementById("jf").onsubmit = e => {
+    e.preventDefault();
+    const pin = document.getElementById("pin").value.replace(/\D/g, ""), nk = nickClean(document.getElementById("nick").value);
+    if (pin.length !== 6) return renderJoin("El PIN tiene 6 dígitos.");
+    if (!nk) return renderJoin("Escribe un apodo (letras o números).");
+    store("bda.nick", nk); joinRoom(pin, nk);
+  };
+}
+async function joinRoom(pin, nick) {
+  VIEW = "player";
+  $app.innerHTML = `<div class="wait"><div class="spinner"></div><p>Buscando la sala ${esc(pin)}…</p></div>`;
+  let r;
+  try { r = await ROOM.join("bda-" + pin); }
+  catch (e) { return renderJoin(e && e.code === "not_found" ? "No encontramos una sala con ese PIN. Revisa el número o pide al anfitrión que la cree." : "No se pudo entrar (" + (e && e.code || "error") + "). Revisa tu conexión."); }
+  P = { r, pin, nick, me: null, hostPeer: null, key: "", log: {}, answered: null, deadline: 0, seenHost: false };
+  r.presence({ role: "player", nick }).catch(e => netWarn("No se pudo registrar tu apodo en la sala (" + (e && e.code || "error") + ")."));
+  r.onPeers(onPlayerPeers, e => roomError("Se perdió la conexión con la sala (" + e.code + ")."));
+  setTimeout(() => { if (P && !P.seenHost && VIEW === "player") { leaveRoomPlayer(); renderJoin("No encontramos una sala con ese PIN. Revisa el número o pide al anfitrión que la cree."); } }, 15000);
+}
+function leaveRoomPlayer() { try { P && P.r.leave(); } catch (e) { } P = null; }
+function onPlayerPeers(ch) {
+  if (!P) return;
+  const meP = ch.peers.find(p => p.sameTab); if (meP) P.me = meP.peer;
+  const host = ch.peers.find(p => p.presence && p.presence.role === "host" && p.presence.g);
+  if (!host) {
+    if (P.seenHost) { VIEW = "pend"; $app.innerHTML = `<div class="card"><h2>El anfitrión salió de la sala</h2><p class="muted">La partida terminó.</p><div class="row"><button class="primary" id="home">Volver al inicio</button></div></div>`;
+      document.getElementById("home").onclick = () => { leaveRoomPlayer(); renderHome(); }; }
+    return;
+  }
+  P.seenHost = true; P.hostPeer = host.peer;
+  playerRender(host.presence.g, host.updatedAt);
+}
+function myRow(g) { return (g.sb || []).find(r => r[0] === P.me); }
+function playerRender(g, updatedAt) {
+  const key = g.ph + ":" + g.i;
+  const row = myRow(g);
+  if (g.ph === "q" && typeof g.left === "number") P.deadline = updatedAt + g.left;
+  if (key === P.key && g.ph !== "lobby") return;          // misma pantalla; nada que redibujar
+  P.key = key; stopTimers(); VIEW = "player";
+  const head = `<div class="topbar"><span class="pill">Sala ${esc(P.pin)}</span><span class="pill">${esc(P.nick)}</span>${row ? `<span class="pill gold">${row[2].toLocaleString("es-MX")} pts</span>` : ""}</div>`;
+  if (g.ph === "lobby") {
+    $app.innerHTML = `${head}<div class="wait"><div class="spinner"></div><h2>¡Ya estás dentro!</h2><p class="muted">Espera a que el anfitrión inicie. ${g.np ? g.np + " jugadores en la sala." : ""}</p></div>
+      <div class="row"><button class="ghost" id="leave">Salir</button></div>`;
+    document.getElementById("leave").onclick = () => { leaveRoomPlayer(); renderHome(); };
+    return;
+  }
+  const q = BANK[g.qid];
+  if (g.ph === "q") {
+    if (!q) return;
+    P.answered = null;
+    $app.innerHTML = questionHTML(q, g.perm, { interactive: true, idx: g.i, total: g.n, score: row ? row[2] : 0, streak: row ? row[3] : 0 });
+    const lock = choice => {
+      if (P.answered !== null) return;
+      P.answered = choice == null ? -1 : choice; stopTimers();
+      if (choice != null) P.r.presence({ a: [g.i, choice] }).catch(e => netWarn("No se pudo enviar tu respuesta (" + (e && e.code || "error") + ")."));
+      P.log[g.i] = { qid: q.id, choice };
+      $app.innerHTML = `${head}<div class="wait"><div class="spinner"></div><h2>${choice == null ? "Se acabó el tiempo" : "Respuesta enviada"}</h2><p class="muted">Esperando a los demás…</p></div>`;
+    };
+    bindAnswers(lock);
+    const dl = P.deadline || Date.now() + g.dur * 1000;
+    runTimer(dl, g.dur, () => lock(null));
+    return;
+  }
+  if (g.ph === "rev" && q) {
+    const mine = P.log[g.i];
+    const choice = mine ? mine.choice : null, ok = choice === q.c;
+    if (!mine) P.log[g.i] = { qid: q.id, choice: null };
+    $app.innerHTML = `${head}
+      <div class="verdict ${ok ? "ok" : choice == null ? "neutral" : "bad"}"><h2>${ok ? "¡Correcto!" : choice == null ? "Sin respuesta" : "Incorrecto"}</h2>
+        <span class="pts">+${row ? row[5] : 0}</span>${row && row[3] > 1 ? `<span>Racha de ${row[3]}</span>` : ""}</div>
+      ${questionHTML(q, g.perm, { reveal: { chosen: choice }, idx: g.i, total: g.n })}
+      <div class="expl">${rich(q.e)}</div>`;
+    return;
+  }
+  if (g.ph === "board") {
+    const rows = g.sb || [], pos = rows.findIndex(r => r[0] === P.me);
+    $app.innerHTML = `${head}<h2>${pos >= 0 ? `Vas en el lugar ${pos + 1} de ${g.np || rows.length}` : "Ranking"}</h2>${leaderboardHTML(rows, P.me, 5)}<p class="muted">El anfitrión pasará a la siguiente pregunta.</p>`;
+    return;
+  }
+  if (g.ph === "end") {
+    const rows = g.sb || [], pos = rows.findIndex(r => r[0] === P.me);
+    const wrong = Object.values(P.log).filter(l => l.choice !== BANK[l.qid].c);
+    $app.innerHTML = `${head}<h1>${pos === 0 ? "¡Ganaste!" : pos >= 0 ? `Lugar ${pos + 1}` : "Fin del juego"}</h1>
+      ${leaderboardHTML(rows, P.me, 10)}
+      <section class="card"><h3>Tus preguntas falladas</h3>${reviewHTML(wrong)}</section>
+      <div class="row"><button class="ghost" id="leave">Salir de la sala</button><span class="muted">Si el anfitrión inicia otra partida, aparecerá aquí.</span></div>`;
+    document.getElementById("leave").onclick = () => { leaveRoomPlayer(); renderHome(); };
+    if (g.ph === "end") P.log = Object.assign({}, P.log);
+  }
+}
+/* Al empezar una partida nueva en la misma sala, limpia el historial del jugador */
+const _pr = playerRender;
+playerRender = function (g, u) { if (P && g.ph === "q" && g.i === 0 && P.key.startsWith("end")) P.log = {}; if (P && g.ph === "lobby" && P.key.startsWith("end")) P.log = {}; _pr(g, u); };
+
+renderHome();
+</script>
+</body>
+</html>
