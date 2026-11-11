@@ -131,40 +131,67 @@ footer { margin-top: auto; color: var(--muted); font-size: .8rem; }
 </head>
 <body>
 <main id="app" aria-live="polite"></main>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
-/* Conexión entre dispositivos sin claude.ai: WebRTC con PeerJS.
-   El anfitrión es el centro de la sala: recibe la presencia de cada jugador y reenvía la lista completa a todos.
-   Expone la misma interfaz que usa el juego: claude.use("room").join(nombre) -> { presence, onPeers, peers, leave }. */
+/* Conexión entre dispositivos sin claude.ai: servidor público de mensajes MQTT por WebSocket seguro.
+   Cada participante publica su presencia (apodo, respuesta o estado del juego) como mensaje retenido en
+   retobda/v1/<PIN>/p/<id>; todos se suscriben a retobda/v1/<PIN>/p/+. Si alguien se desconecta,
+   el servidor borra su presencia (last will). El primer dígito del PIN elige el servidor.
+   Expone la interfaz que usa el juego: claude.use("room").join(nombre) -> { presence, onPeers, peers, leave }. */
 window.BDA_STANDALONE = true;
 (function () {
-  const PFX = "retobda-v1-";
-  const PeerCls = () => window.Peer || (window.peerjs && window.peerjs.Peer);
+  const BROKERS = [
+    "wss://broker.emqx.io:8084/mqtt",
+    "wss://broker.hivemq.com:8884/mqtt",
+    "wss://test.mosquitto.org:8081"
+  ];
+  const LIBS = [
+    "https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js",
+    "https://cdn.jsdelivr.net/npm/mqtt@4.3.7/dist/mqtt.min.js"
+  ];
+  let libP = null;
+  function loadLib() {
+    if (window.mqtt) return Promise.resolve(true);
+    if (libP) return libP;
+    libP = (async () => {
+      for (const u of LIBS) {
+        try {
+          await new Promise((res, rej) => { const s = document.createElement("script"); s.src = u; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+          if (window.mqtt) return true;
+        } catch (e) { }
+      }
+      return false;
+    })();
+    return libP;
+  }
+  const rid = () => Math.random().toString(36).slice(2, 10);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  function openPeer(id) {
+  function connect(url, id, willTopic) {
     return new Promise((resolve, reject) => {
-      const P = PeerCls();
-      if (!P) return reject({ code: "no_lib" });
-      const p = id ? new P(id, { debug: 0 }) : new P({ debug: 0 });
-      let opened = false;
-      const t = setTimeout(() => { if (!opened) { try { p.destroy(); } catch (e) { } reject({ code: "timeout" }); } }, 15000);
-      p.on("open", () => { opened = true; clearTimeout(t); resolve(p); });
-      p.on("error", err => {
-        if (!opened) { clearTimeout(t); try { p.destroy(); } catch (e) { } reject({ code: err && err.type === "unavailable-id" ? "taken" : (err && err.type) || "error" }); }
-      });
-      p.on("disconnected", () => { try { if (!p.destroyed) p.reconnect(); } catch (e) { } });
+      let c;
+      try {
+        c = window.mqtt.connect(url, {
+          clientId: "retobda_" + id, keepalive: 15, clean: true, reconnectPeriod: 2000, connectTimeout: 8000,
+          will: { topic: willTopic, payload: "", retain: true, qos: 1 }
+        });
+      } catch (e) { return reject({ code: "network" }); }
+      const t = setTimeout(() => { try { c.end(true); } catch (e) { } reject({ code: "network" }); }, 9000);
+      c.on("error", () => { });
+      c.once("connect", () => { clearTimeout(t); resolve(c); });
     });
   }
 
   async function join(name, opts) {
-    const hub = !!(opts && opts.hub), hubId = PFX + name;
-    const peer = await openPeer(hub ? hubId : null);
-    const myId = peer.id;
-    const peers = new Map();            // id -> {presence, s, updatedAt}
-    const handlers = [];
-    const conns = new Map();            // solo anfitrión: id -> conexión
-    let mine = {}, hubConn = null, closed = false, fireT = null, bT = null;
+    const hub = !!(opts && opts.hub);
+    const pin = String(name).replace(/^bda-/, "");
+    const url = BROKERS[(Number(pin[0]) - 1 + BROKERS.length * 3) % BROKERS.length];
+    const myId = rid(), base = "retobda/v1/" + pin + "/", myTopic = base + "p/" + myId;
+    let c;
+    try { c = await connect(url, myId, myTopic); }
+    catch (e) { throw { code: hub ? "broker" : "network" }; }
 
+    const peers = new Map(), handlers = [];
+    let mine = {}, closed = false, fireT = null;
     const snap = () => [...peers].map(([id, v]) => Object.freeze({
       peer: id, by: null, kind: "viewer", guest: false, isMe: id === myId, sameTab: id === myId, presence: v.presence, updatedAt: v.updatedAt
     }));
@@ -180,54 +207,35 @@ window.BDA_STANDALONE = true;
       if (old && old.s === s) return false;
       peers.set(id, { presence: pres, s, updatedAt: Date.now() }); return true;
     };
-    const broadcast = () => {
-      if (bT) return;
-      bT = setTimeout(() => {
-        bT = null;
-        const list = [...peers].map(([id, v]) => [id, v.presence]);
-        conns.forEach(c => { if (c.open) { try { c.send({ t: "peers", list }); } catch (e) { } } });
-      }, 40);
-    };
     setP(myId, {});
-    const bye = () => { try { peer.destroy(); } catch (e) { } };
-    window.addEventListener("pagehide", bye);
+    const pub = () => new Promise((res, rej) => c.publish(myTopic, JSON.stringify(mine), { retain: true, qos: 1 }, err => err ? rej({ code: "network" }) : res()));
 
+    c.on("message", (topic, payload) => {
+      if (!topic.startsWith(base + "p/")) return;
+      const id = topic.slice(base.length + 2);
+      if (!id || id === myId) return;
+      const s = payload ? payload.toString() : "";
+      if (!s) { if (peers.delete(id)) fire(); return; }
+      if (s.length > 6000) return;
+      let pres; try { pres = JSON.parse(s); } catch (e) { return; }
+      if (!pres || typeof pres !== "object" || Array.isArray(pres)) return;
+      if (setP(id, pres)) fire();
+    });
+    c.on("connect", () => { if (!closed && Object.keys(mine).length) pub().catch(() => { }); });   // al reconectar
+    await new Promise((res, rej) => c.subscribe(base + "p/+", { qos: 1 }, err => err ? rej({ code: hub ? "broker" : "network" }) : res()));
+
+    const hostHere = () => [...peers].some(([id, v]) => id !== myId && v.presence && v.presence.role === "host");
     if (hub) {
-      peer.on("connection", c => {
-        c.on("open", () => { conns.set(c.peer, c); broadcast(); });
-        c.on("data", m => {
-          if (!m || m.t !== "p" || !m.pres || typeof m.pres !== "object") return;
-          if (JSON.stringify(m.pres).length > 4096) return;
-          if (setP(c.peer, m.pres)) { fire(); broadcast(); }
-        });
-        const gone = () => { conns.delete(c.peer); if (peers.delete(c.peer)) { fire(); broadcast(); } };
-        c.on("close", gone); c.on("error", gone);
-      });
-      // Señal periódica para que los jugadores detecten si el anfitrión se fue
-      setInterval(() => { conns.forEach(c => { if (c.open) { try { c.send({ t: "ping" }); } catch (e) { } } }); }, 4000);
+      await sleep(1200);
+      if (hostHere()) { try { c.end(true); } catch (e) { } throw { code: "taken" }; }
     } else {
-      await new Promise((resolve, reject) => {
-        let done = false;
-        const fail = code => { if (done) return; done = true; try { peer.destroy(); } catch (e) { } reject({ code }); };
-        const t = setTimeout(() => fail("not_found"), 12000);
-        peer.on("error", err => { if (err && err.type === "peer-unavailable") fail("not_found"); });
-        hubConn = peer.connect(hubId, { reliable: true });
-        hubConn.on("open", () => { if (done) return; done = true; clearTimeout(t); resolve(); });
-        hubConn.on("error", () => fail("not_found"));
-      });
-      let lastHeard = Date.now();
-      const dropHub = () => { for (const id of [...peers.keys()]) if (id !== myId) peers.delete(id); fire(); };
-      setInterval(() => { if (!closed && Date.now() - lastHeard > 15000) dropHub(); }, 3000);
-      hubConn.on("data", m => {
-        lastHeard = Date.now();
-        if (!m || m.t !== "peers" || !Array.isArray(m.list)) return;
-        const seen = new Set();
-        for (const [id, pres] of m.list) { if (id === myId) continue; seen.add(id); setP(id, pres || {}); }
-        for (const id of [...peers.keys()]) if (id !== myId && !seen.has(id)) peers.delete(id);
-        fire();
-      });
-      hubConn.on("close", dropHub);
+      let waited = 0;
+      while (!hostHere() && waited < 8000) { await sleep(250); waited += 250; }
+      if (!hostHere()) { try { c.end(true); } catch (e) { } throw { code: "not_found" }; }
     }
+
+    const clear = () => { try { c.publish(myTopic, "", { retain: true, qos: 0 }); } catch (e) { } };
+    window.addEventListener("pagehide", clear);
 
     return {
       name,
@@ -236,18 +244,17 @@ window.BDA_STANDALONE = true;
         mine = Object.assign({}, mine, patch);
         for (const k in patch) if (patch[k] === null) delete mine[k];
         setP(myId, Object.assign({}, mine)); fire();
-        if (hub) broadcast();
-        else if (hubConn && hubConn.open) hubConn.send({ t: "p", pres: mine });
-        else throw { code: "disconnected" };
+        if (!c.connected) throw { code: "disconnected" };
+        await pub();
       },
-      onPeers: (h) => { handlers.push(h); fire(); return () => { const i = handlers.indexOf(h); if (i >= 0) handlers.splice(i, 1); }; },
+      onPeers: h => { handlers.push(h); fire(); return () => { const i = handlers.indexOf(h); if (i >= 0) handlers.splice(i, 1); }; },
       peers: snap,
-      connected: () => !closed && !peer.disconnected,
-      leave: async () => { closed = true; try { peer.destroy(); } catch (e) { } }
+      connected: () => !closed && c.connected,
+      leave: async () => { closed = true; clear(); setTimeout(() => { try { c.end(); } catch (e) { } }, 300); }
     };
   }
 
-  window.claude = { use: async n => (n === "room" && PeerCls() ? { join } : null) };
+  window.claude = { use: async n => (n === "room" && await loadLib() ? { join } : null) };
 })();
 
 </script>
@@ -727,9 +734,9 @@ async function startHost() {
   for (let k = 0; k < 4 && !r; k++) {
     pin = String(100000 + Math.floor(Math.random() * 900000));
     try { r = await ROOM.join("bda-" + pin, { hub: true }); }
-    catch (e) { if (!(e && e.code === "taken")) return roomError("No se pudo crear la sala (" + (e && e.code || "error") + "). Revisa tu conexión e intenta de nuevo."); }
+    catch (e) { if (!(e && (e.code === "taken" || e.code === "broker"))) return roomError("No se pudo crear la sala (" + (e && e.code || "error") + "). Revisa tu conexión e intenta de nuevo."); }
   }
-  if (!r) return roomError("No se pudo reservar un PIN libre. Intenta de nuevo.");
+  if (!r) return roomError("No se pudo conectar con el servidor de salas. Revisa tu internet; algunas redes escolares lo bloquean, prueba con datos móviles.");
   H = { pin, r, qs: [], players: {}, online: new Set(), answers: {}, g: { ph: "lobby", i: 0, n: 0 }, qStart: 0, dur: cfg.dur };
   r.onPeers(onHostPeers, e => roomError("Se perdió la conexión con la sala (" + e.code + ")."));
   pushHost();
@@ -896,7 +903,11 @@ async function joinRoom(pin, nick) {
   $app.innerHTML = `<div class="wait"><div class="spinner"></div><p>Buscando la sala ${esc(pin)}…</p></div>`;
   let r;
   try { r = await ROOM.join("bda-" + pin); }
-  catch (e) { return renderJoin(e && e.code === "not_found" ? "No encontramos una sala con ese PIN. Revisa el número o pide al anfitrión que la cree." : "No se pudo entrar (" + (e && e.code || "error") + "). Revisa tu conexión."); }
+  catch (e) {
+    return renderJoin(e && e.code === "not_found" ? "Te conectaste al servidor, pero no hay ninguna sala abierta con ese PIN. Revisa el número y que el anfitrión siga en la pantalla del PIN."
+      : e && e.code === "network" ? "No se pudo conectar con el servidor de salas. Revisa tu internet; algunas redes escolares lo bloquean, prueba con datos móviles."
+      : "No se pudo entrar (" + (e && e.code || "error") + ").");
+  }
   P = { r, pin, nick, me: null, hostPeer: null, key: "", log: {}, answered: null, deadline: 0, seenHost: false };
   r.presence({ role: "player", nick }).catch(e => netWarn("No se pudo registrar tu apodo en la sala (" + (e && e.code || "error") + ")."));
   r.onPeers(onPlayerPeers, e => roomError("Se perdió la conexión con la sala (" + e.code + ")."));
@@ -908,8 +919,11 @@ function onPlayerPeers(ch) {
   const meP = ch.peers.find(p => p.sameTab); if (meP) P.me = meP.peer;
   const host = ch.peers.find(p => p.presence && p.presence.role === "host" && p.presence.g);
   if (!host) {
-    if (P.seenHost) { VIEW = "pend"; $app.innerHTML = `<div class="card"><h2>El anfitrión salió de la sala</h2><p class="muted">La partida terminó.</p><div class="row"><button class="primary" id="home">Volver al inicio</button></div></div>`;
-      document.getElementById("home").onclick = () => { leaveRoomPlayer(); renderHome(); }; }
+    if (P.seenHost && VIEW !== "pend") {
+      VIEW = "pend"; P.key = ""; stopTimers();
+      $app.innerHTML = `<div class="card"><h2>Se perdió la conexión con el anfitrión</h2><p class="muted">Si el anfitrión cerró la sala, la partida terminó. Si solo fue un corte de internet, el juego continuará aquí en cuanto regrese.</p><div class="row"><button class="primary" id="home">Salir al inicio</button></div></div>`;
+      document.getElementById("home").onclick = () => { leaveRoomPlayer(); renderHome(); };
+    }
     return;
   }
   P.seenHost = true; P.hostPeer = host.peer;
